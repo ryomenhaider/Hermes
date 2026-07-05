@@ -1,0 +1,14 @@
+[project]
+name = "hermes"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "asyncpg>=0.31.0",
+    "dotenv>=0.9.9",
+    "fastapi>=0.139.0",
+    "pydantic>=2.13.4",
+    "sqlalchemy>=2.0.51",
+    "uvicorn>=0.50.0",
+]
