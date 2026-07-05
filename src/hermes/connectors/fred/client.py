@@ -33,7 +33,7 @@ class FredClient:
             logger.error(f'{series_id} is not available')
 
 
-    def get_data(self, endpoint: str = Literal['metadata', 'observations']):
+    def get_data(self, endpoint: Literal['metadata', 'observations']):
 
         results = []
 
