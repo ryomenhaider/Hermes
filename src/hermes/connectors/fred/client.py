@@ -2,7 +2,7 @@ import httpx
 from config import FRED_API
 import logging
 from indicators import FRED_INDICATORS
-
+from typing import Literal
 
 logger = logging(__name__)
 class FredClient:
@@ -33,8 +33,29 @@ class FredClient:
             logger.error(f'{series_id} is not available')
 
 
-    def get_data(self, endpoint: str = 'MetaData' | 'Observations'):
-        
+    def get_data(self, endpoint: str = Literal['metadata', 'observations']):
+
+        results = []
+
         for item in FRED_INDICATORS:
-            series_id = item['series_id']
-            url = self.get_url(series_id=series_id, endpoint=endpoint)
+            try:
+                series_id = item['series_id']
+                url = self.get_url(
+                    series_id=series_id, 
+                    endpoint=endpoint
+                )
+                
+                response = httpx.get(url)
+                response.raise_for_status()
+                
+                results.append(
+                    {
+                        'series_id': series_id,
+                        'data': response.json()
+                    }
+                )
+            
+            except Exception as e:
+                logger.error(f'Error: {e}')    
+
+        return results
