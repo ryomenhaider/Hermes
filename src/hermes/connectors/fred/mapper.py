@@ -3,27 +3,28 @@ class FredMapper:
     def map_metadata(self, data):
 
         return {
-            'code': data['id'],
+            'id': data['id'],
             'title': data['title'],
             'frequency': data['frequency'],
             'units': data['units'],
-            'Source': 'FRED'
+            'source': 'FRED'
         }
     
-    def map_obs(self, data):
+    def map_obs(self, data: list[dict], series_id: str | None = None) -> list[dict]:
 
         return [
             {
+                "series_id": series_id,
                 "period": obs["date"],
                 "value": float(obs["value"]),
             }
             for obs in data
         ]
     
-    def map(self, data, endpoint):
+    def map(self, data, endpoint, series_id: str | None = None):
 
-        if endpoint == 'observation':
-            return self.map_obs(data)
+        if endpoint == 'observations':
+            return self.map_obs(data, series_id=series_id)
         
         elif endpoint == 'metadata':
             return self.map_metadata(data)

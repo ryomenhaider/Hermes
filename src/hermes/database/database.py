@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-import asyncpg
-from config import DB_URL
+from hermes.config import DB_URL
 
 class Base(DeclarativeBase):
     pass
@@ -18,8 +17,11 @@ SessionLocal = sessionmaker(
 )
 
 def get_db():
-    db = SessionLocal()
+    return SessionLocal()
 
+
+def get_db_session():
+    db = SessionLocal()
     try:
         yield db
     finally:

@@ -1,8 +1,23 @@
-from fastapi import APIRouter
-from pydantic import Field, BaseModel
+from fastapi import APIRouter, HTTPException
 
-router = APIRouter()
+from hermes.connectors.fred.client import FredClient
 
-@router.get()
-def get():
-    pass
+router = APIRouter(prefix='/fred', tags=['fred'])
+
+
+@router.get('/metadata')
+def get_metadata():
+    client = FredClient()
+    try:
+        return client.get_data('metadata')
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get('/observations')
+def get_observations():
+    client = FredClient()
+    try:
+        return client.get_data('observations')
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
