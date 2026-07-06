@@ -11,7 +11,7 @@ class Connector(ABC):
         pass
     
     @abstractmethod
-    def map():
+    def mapper():
         pass
 
     @abstractmethod
