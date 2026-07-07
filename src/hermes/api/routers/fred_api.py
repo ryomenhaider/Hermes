@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
 
-from hermes.connectors.fred.client import FredClient
+from src.hermes.connectors.fred.client import FredClient
+from src.hermes.database.database import query_all_async
+from src.hermes.models.fred_model import FredObs
 
 router = APIRouter(prefix='/fred', tags=['fred'])
 
@@ -21,3 +23,8 @@ def get_observations():
         return client.get_data('observations')
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+@router.get('/{indicator}/{limit}')
+async def get_indicator(indicator: str, limit: int = 10):
+    value = query_all_async(model=FredObs, limit=limit, filters=indicator)
+    return value

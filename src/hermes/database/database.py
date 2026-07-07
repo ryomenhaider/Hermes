@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import select
 
-from hermes.config import DB_URL
+from src.hermes.config import DB_URL
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ async def query_one_async(model: type[Any], **filters: Any) -> Any | None:
     return value
 
 
-async def query_all_async(model: type[Any]) -> list[Any]:
+async def query_all_async(model: type[Any], limit: int | None = None, **filters: Any) -> list[Any]:
     engine = create_async_engine(DB_URL, future=True, pool_pre_ping=True)
     session_factory = async_sessionmaker(
         bind=engine,
@@ -112,8 +112,11 @@ async def query_all_async(model: type[Any]) -> list[Any]:
         future=True,
     )
     async with session_factory() as session:
-        result = await session.execute(select(model))
-        value = list(result.scalars().all())
+        result = await session.execute(select(model).filter_by(**filters))
+        rows = result.scalars().all()
+        if limit is not None:
+            rows = rows[:limit]
+        value = list(rows)
     await engine.dispose()
     return value
 
@@ -139,8 +142,8 @@ def query_one(model: type[Any], **filters: Any) -> Any | None:
     return asyncio.run(query_one_async(model, **filters))
 
 
-def query_all(model: type[Any]) -> list[Any]:
-    return asyncio.run(query_all_async(model))
+def query_all(model: type[Any], limit: int | None = None) -> list[Any]:
+    return asyncio.run(query_all_async(model, limit=limit))
 
 
 def add_and_commit(obj: Any) -> Any:
@@ -175,7 +178,6 @@ async def run_migrations_async() -> None:
 
 
 async def init_db_async() -> None:
-    import hermes.models.fred_model  # noqa: F401
 
     engine = create_async_engine(DB_URL, future=True, pool_pre_ping=True)
     try:

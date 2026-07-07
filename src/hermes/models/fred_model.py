@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Date, Float, Integer, String
 
-from hermes.database.database import Base
+from src.hermes.database.database import Base
 
 
 class FredMetaData(Base):
