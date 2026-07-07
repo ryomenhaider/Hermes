@@ -1,8 +1,8 @@
 import logging
 from datetime import datetime
 
-from hermes.database.database import get_db
-from hermes.models.fred_model import FredMetaData, FredObs
+from src.hermes.database.database import get_db
+from src.hermes.models.fred_model import FredMetaData, FredObs
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,6 @@ class FredRepo:
         except Exception as e:
             logger.error(f'Error upserting metadata: {e}')
             db.rollback()
-        
-        finally:
-            db.close()
 
     def upsert_obs(self, series_id: str, observations: list[dict]):
         db = get_db()
@@ -48,6 +45,3 @@ class FredRepo:
         except Exception as e:
             logger.error(f'Error upserting observations for {series_id}: {e}')
             db.rollback()
-
-        finally:
-            db.close()

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from hermes.api.routers.fred_api import router as fred_router
+from src.hermes.api.routers.fred_api import router as fred_router
 
 app = FastAPI(
     version='0.1.0',

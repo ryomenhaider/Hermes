@@ -2,8 +2,8 @@ import httpx
 import logging
 from typing import Literal
 
-from hermes.config import FRED_API
-from hermes.connectors.fred.indicators import FRED_INDICATORS
+from src.hermes.config import FRED_API
+from src.hermes.connectors.fred.indicators import FRED_INDICATORS
 
 logger = logging.getLogger(__name__)
 
@@ -71,3 +71,8 @@ class FredClient:
                 logger.error(f'Error fetching {series_id} {endpoint}: {e}')
 
         return results
+    
+if __name__ == '__main__':
+    fred_c = FredClient()
+
+    print(fred_c.get_url('GDP', 'observations'))
