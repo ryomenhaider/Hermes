@@ -89,12 +89,6 @@ FRED_INDICATORS = [
         'unit': 'Dollars per Barrel',
     },
 
-    # Gold Prices
-    {
-        'code': 'Gold Fixing Price 10:30 A.M. (London time) in London Bullion Market, based in U.S. Dollars',
-        'series_id': 'GOLDAMGBD228NLBM',
-        'unit': 'U.S. Dollars per Troy Ounce',
-    },
 
     # Market Volatility
     {

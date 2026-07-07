@@ -26,5 +26,5 @@ def get_observations():
 
 @router.get('/{indicator}/{limit}')
 async def get_indicator(indicator: str, limit: int = 10):
-    value = query_all_async(model=FredObs, limit=limit, filters=indicator)
+    value = await query_all_async(model=FredObs, limit=limit, series_id=indicator)
     return value
