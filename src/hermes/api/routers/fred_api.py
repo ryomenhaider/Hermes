@@ -28,3 +28,4 @@ def get_observations():
 async def get_indicator(indicator: str, limit: int = 10):
     value = await query_all_async(model=FredObs, limit=limit, series_id=indicator)
     return value
+
