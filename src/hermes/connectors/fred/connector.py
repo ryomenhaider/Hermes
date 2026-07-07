@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from hermes.connectors.base_model import Connector
-from hermes.connectors.fred.client import FredClient
-from hermes.connectors.fred.mapper import FredMapper
-from hermes.connectors.fred.repository import FredRepo
-from hermes.connectors.fred.validator import FredValidator
+from src.hermes.connectors.base_model import Connector
+from src.hermes.connectors.fred.client import FredClient
+from src.hermes.connectors.fred.mapper import FredMapper
+from src.hermes.connectors.fred.repository import FredRepo
+from src.hermes.connectors.fred.validator import FredValidator
 
 logger = logging.getLogger(__name__)
 

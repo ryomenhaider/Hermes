@@ -1,6 +1,9 @@
+from src.hermes.connectors.fred.connector import FredConnector
+
+fred_connector = FredConnector('observations')
+
 def main():
-    print("Hello from hermes!")
-
-
-if __name__ == "__main__":
-    main()
+    fred_connector.fetch()
+    fred_connector.validate()
+    fred_connector.mapper()
+    fred_connector.store()

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Date, Float
+from sqlalchemy import Column, Date, Float, Integer, String
+
 from hermes.database.database import Base
 
 
