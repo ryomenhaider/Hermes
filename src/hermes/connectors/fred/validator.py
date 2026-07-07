@@ -97,9 +97,11 @@ class FredValidator:
     def validate(self, data: dict, endpoint: str):
 
         if endpoint == "metadata":
+            print('Meta data has been validated')
             return self.validate_metadata(data=data)
 
         if endpoint == "observations":
+            print('Obs has been validated')
             return self.validate_obs(data=data)
 
         raise ValueError(f"Unknown endpoint: {endpoint}")

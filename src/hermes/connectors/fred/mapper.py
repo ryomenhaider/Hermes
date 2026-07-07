@@ -24,9 +24,11 @@ class FredMapper:
     def map(self, data, endpoint, series_id: str | None = None):
 
         if endpoint == 'observations':
+            print(f'{series_id} data has been mapped')
             return self.map_obs(data, series_id=series_id)
         
         elif endpoint == 'metadata':
+            print(f'{series_id} data has been mapped')
             return self.map_metadata(data)
         
         raise ValueError(f'Unknown Endpoint {endpoint}')

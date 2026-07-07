@@ -1,26 +1,24 @@
 from src.hermes.connectors.fred.connector import FredConnector
 from src.hermes.database.database import init_db
-from src.hermes.api.server import app
-from src.hermes.config import HOST, PORT, ENV
+from src.hermes.config import HOST, PORT, ENV, SUPABASE_DB_URL
 import uvicorn
 
-fred_connector = FredConnector('observations')
-
 def main():
+    fred_connector = FredConnector('observations')
+
     print('='*50)
     print('              HERMES HAS STARTED')
     print('='*50)
 
     print('='*50)
-    print('              Data Migration HAS STARTED')
+    print('              RUNNING HERMES DB')
     print('='*50)
-
-    init_db()
-
+    
+    init_db(SUPABASE_DB_URL)
+    
     print('='*50)
     print('              RUNNING HERMES MAIN LOGIC')
     print('='*50)
-
 
     fred_connector.fetch()
     fred_connector.validate()
@@ -32,10 +30,10 @@ def main():
     print('='*50)
 
     uvicorn.run(
-        app=app,
+        "src.hermes.api.server:app",
         host=HOST,
-        port=PORT,
-        reload=ENV,
+        port=int(PORT),
+        reload=(ENV == "dev"),
     )
 
 if __name__ == '__main__':

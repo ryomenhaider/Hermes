@@ -69,7 +69,7 @@ class FredClient:
 
             except Exception as e:
                 logger.error(f'Error fetching {series_id} {endpoint}: {e}')
-
+        print(f'{series_id} data has collected')
         return results
     
 if __name__ == '__main__':

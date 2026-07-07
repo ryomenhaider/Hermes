@@ -1,156 +1,106 @@
+## Its Shit (AI generated)
+## i will clean this up after testing things 
+
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import select
 
-from src.hermes.config import DB_URL
+from src.hermes.config import SUPABASE_DB_URL
 
 logger = logging.getLogger(__name__)
-
-
-
-if not DB_URL:
-    raise RuntimeError(
-        "DATABASE_URL is not configured. Please set DATABASE_URL to a PostgreSQL URI."
-    )
 
 Base = declarative_base()
 
 
-class DatabaseSession:
-    def __init__(self) -> None:
-        self._loop = asyncio.new_event_loop()
-        self._engine = create_async_engine(
-            DB_URL,
-            future=True,
-            pool_pre_ping=True,
+def get_database_url() -> str | None:
+    url = SUPABASE_DB_URL or os.getenv("DATABASE_URL")
+    if not url:
+        return None
+    if url.startswith(("http://", "https://")):
+        logger.warning(
+            "SUPABASE_DB_URL looks like a Supabase site URL, not a Postgres connection string. "
+            "Set SUPABASE_DB_URL to something like: "
+            "postgresql+asyncpg://postgres:password@db.project.supabase.co:5432/postgres?sslmode=require"
         )
-        self._session = None
+        return None
+    return url
 
-    def _get_session(self) -> AsyncSession:
-        if self._session is None:
-            self._session = self._loop.run_until_complete(self._create_session())
-        return self._session
 
-    async def _create_session(self) -> AsyncSession:
-        session_factory = async_sessionmaker(
-            bind=self._engine,
-            autoflush=False,
-            autocommit=False,
-            expire_on_commit=False,
-            future=True,
+def _get_engine(database_url: str | None = None):
+    url = database_url or get_database_url()
+    if not url:
+        raise RuntimeError(
+            "SUPABASE_DB_URL is not configured. Please set SUPABASE_DB_URL to your Supabase Postgres URI."
         )
-        return session_factory()
-
-    def add(self, obj: Any) -> None:
-        self._get_session().add(obj)
-
-    def add_all(self, objects: list[Any]) -> None:
-        self._get_session().add_all(objects)
-
-    def merge(self, obj: Any) -> Any:
-        return self._get_session().merge(obj)
-
-    def commit(self) -> None:
-        self._loop.run_until_complete(self._get_session().commit())
-
-    def rollback(self) -> None:
-        self._loop.run_until_complete(self._get_session().rollback())
-
-    def refresh(self, obj: Any) -> None:
-        self._loop.run_until_complete(self._get_session().refresh(obj))
-
-    def close(self) -> None:
-        if self._session is not None:
-            self._loop.run_until_complete(self._session.close())
-        self._loop.run_until_complete(self._engine.dispose())
-        self._loop.close()
+    connect_args = {"statement_cache_size": 0}
+    if "sslmode=" in url:
+        from urllib.parse import urlencode, parse_qs, urlparse, urlunparse
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        sslmode = params.pop("sslmode", [None])[0]
+        if sslmode:
+            connect_args["ssl"] = sslmode
+        url = urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            urlencode(params, doseq=True),
+            parsed.fragment
+        ))
+    return create_async_engine(url, future=True, pool_pre_ping=True, connect_args=connect_args)
 
 
-def get_db() -> DatabaseSession:
-    return DatabaseSession()
+def _get_session_factory(database_url: str | None = None):
+    engine = _get_engine(database_url)
+    session_factory = async_sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+        future=True,
+    )
+    return session_factory, engine
 
 
-def get_db_session() -> Generator[DatabaseSession, None, None]:
-    db = get_db()
+async def init_db_async(database_url: str | None = None) -> bool:
+    url = database_url or get_database_url()
+    if not url:
+        logger.warning("No database URL configured; skipping database initialization.")
+        return False
+
+    engine = _get_engine(url)
     try:
-        yield db
+        async with engine.begin() as connection:
+            await connection.execute(text("SELECT 1"))
+            await connection.run_sync(Base.metadata.create_all)
     finally:
-        db.close()
+        await engine.dispose()
+
+    await run_migrations_async(database_url=url)
+    logger.info("Database initialized using %s", url)
+    return True
 
 
-async def query_one_async(model: type[Any], **filters: Any) -> Any | None:
-    engine = create_async_engine(DB_URL, future=True, pool_pre_ping=True)
-    session_factory = async_sessionmaker(
-        bind=engine,
-        autoflush=False,
-        autocommit=False,
-        expire_on_commit=False,
-        future=True,
-    )
-    async with session_factory() as session:
-        result = await session.execute(select(model).filter_by(**filters))
-        value = result.scalars().first()
-    await engine.dispose()
-    return value
+def init_db(database_url: str | None = None) -> bool:
+    return asyncio.run(init_db_async(database_url))
 
 
-async def query_all_async(model: type[Any], limit: int | None = None, **filters: Any) -> list[Any]:
-    engine = create_async_engine(DB_URL, future=True, pool_pre_ping=True)
-    session_factory = async_sessionmaker(
-        bind=engine,
-        autoflush=False,
-        autocommit=False,
-        expire_on_commit=False,
-        future=True,
-    )
-    async with session_factory() as session:
-        result = await session.execute(select(model).filter_by(**filters))
-        rows = result.scalars().all()
-        if limit is not None:
-            rows = rows[:limit]
-        value = list(rows)
-    await engine.dispose()
-    return value
+async def run_migrations_async(database_url: str | None = None) -> None:
+    url = database_url or get_database_url()
+    if not url:
+        logger.warning("No database URL configured; skipping migrations.")
+        return
 
-
-async def add_and_commit_async(obj: Any) -> Any:
-    engine = create_async_engine(DB_URL, future=True, pool_pre_ping=True)
-    session_factory = async_sessionmaker(
-        bind=engine,
-        autoflush=False,
-        autocommit=False,
-        expire_on_commit=False,
-        future=True,
-    )
-    async with session_factory() as session:
-        session.add(obj)
-        await session.commit()
-        await session.refresh(obj)
-    await engine.dispose()
-    return obj
-
-
-def query_one(model: type[Any], **filters: Any) -> Any | None:
-    return asyncio.run(query_one_async(model, **filters))
-
-
-def query_all(model: type[Any], limit: int | None = None) -> list[Any]:
-    return asyncio.run(query_all_async(model, limit=limit))
-
-
-def add_and_commit(obj: Any) -> Any:
-    return asyncio.run(add_and_commit_async(obj))
-
-
-async def run_migrations_async() -> None:
     migrations_dir = Path(__file__).resolve().parent / "migrations"
     migration_files = sorted(migrations_dir.glob("*.sql"))
 
@@ -158,7 +108,7 @@ async def run_migrations_async() -> None:
         logger.info("No SQL migration files found.")
         return
 
-    engine = create_async_engine(DB_URL, future=True, pool_pre_ping=True)
+    engine = _get_engine(url)
     try:
         async with engine.begin() as connection:
             for migration_path in migration_files:
@@ -177,19 +127,115 @@ async def run_migrations_async() -> None:
     logger.info("All migrations completed.")
 
 
-async def init_db_async() -> None:
+async def save_one_async(obj: Any, database_url: str | None = None) -> Any:
+    url = database_url or get_database_url()
+    if not url:
+        logger.warning("Skipping save because no valid database URL is configured.")
+        return obj
 
-    engine = create_async_engine(DB_URL, future=True, pool_pre_ping=True)
+    session_factory, engine = _get_session_factory(url)
     try:
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
+        async with session_factory() as session:
+            session.add(obj)
+            await session.commit()
+            await session.refresh(obj)
+            return obj
     finally:
         await engine.dispose()
 
-    await run_migrations_async()
-    logger.info("Database initialized using %s", DB_URL)
+
+async def save_many_async(objects: list[Any], database_url: str | None = None) -> list[Any]:
+    url = database_url or get_database_url()
+    if not url:
+        logger.warning("Skipping bulk save because no valid database URL is configured.")
+        return objects
+
+    session_factory, engine = _get_session_factory(url)
+    try:
+        async with session_factory() as session:
+            session.add_all(objects)
+            await session.commit()
+            return objects
+    finally:
+        await engine.dispose()
 
 
-def init_db() -> None:
-    asyncio.run(init_db_async())
+async def fetch_all_async(model: type[Any], limit: int | None = None, **filters: Any) -> list[Any]:
+    url = get_database_url()
+    if not url:
+        logger.warning("Skipping fetch because no valid database URL is configured.")
+        return []
+
+    session_factory, engine = _get_session_factory(url)
+    try:
+        async with session_factory() as session:
+            result = await session.execute(select(model).filter_by(**filters))
+            rows = result.scalars().all()
+            if limit is not None:
+                rows = rows[:limit]
+            return list(rows)
+    finally:
+        await engine.dispose()
+
+
+async def query_one_async(model: type[Any], **filters: Any) -> Any | None:
+    rows = await fetch_all_async(model, limit=1, **filters)
+    return rows[0] if rows else None
+
+
+async def query_all_async(model: type[Any], limit: int | None = None, **filters: Any) -> list[Any]:
+    return await fetch_all_async(model, limit=limit, **filters)
+
+
+async def delete_many_async(model: type[Any], **filters: Any) -> None:
+    url = get_database_url()
+    if not url:
+        logger.warning("Skipping delete because no valid database URL is configured.")
+        return
+
+    session_factory, engine = _get_session_factory(url)
+    try:
+        async with session_factory() as session:
+            result = await session.execute(select(model).filter_by(**filters))
+            rows = result.scalars().all()
+            for row in rows:
+                await session.delete(row)
+            await session.commit()
+    finally:
+        await engine.dispose()
+
+
+async def check_db_health_async(database_url: str | None = None) -> dict[str, Any]:
+    url = database_url or get_database_url()
+    if not url:
+        return {
+            "status": "not_configured",
+            "database_url": None,
+            "connected": False,
+            "error": "SUPABASE_DB_URL is not configured",
+        }
+
+    engine = _get_engine(url)
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+            return {
+                "status": "ok",
+                "database_url": url,
+                "connected": True,
+            }
+    except Exception as exc:
+        logger.error("Database health check failed: %s", exc)
+        return {
+            "status": "error",
+            "database_url": url,
+            "connected": False,
+            "error": str(exc),
+        }
+    finally:
+        await engine.dispose()
+
+
+def check_db_health(database_url: str | None = None) -> dict[str, Any]:
+    return asyncio.run(check_db_health_async(database_url))
 
