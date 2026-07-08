@@ -14,7 +14,7 @@ class Connector(ABC):
         ...
 
     @abstractmethod
-    def fetch(self) -> list[dict[str, Any]]:
+    def fetch(self, **kwargs) -> list[dict[str, Any]]:
         ...
 
     @abstractmethod
