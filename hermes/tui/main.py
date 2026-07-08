@@ -11,9 +11,11 @@ class Hermes(App):
     }
 
     def compose(self):
-        yield HermesHeader()
-        yield MainScreenTree()
-        yield HermesFooter()
+        yield HermesHeader
+
+        
+
+        yield HermesFooter
 
 if __name__ == "__main__":
     
