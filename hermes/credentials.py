@@ -1,8 +1,7 @@
 import json
 import os
-from pathlib import Path
 import logging
-from settings import CREDENTIALS_FILE, ensure_hermes_home
+from hermes.settings import CREDENTIALS_FILE, ensure_hermes_home
 
 logger = logging.getLogger(__name__)
 

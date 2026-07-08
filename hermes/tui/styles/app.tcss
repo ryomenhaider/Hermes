@@ -1,0 +1,228 @@
+Screen {
+    background: $surface;
+}
+
+/* ── Banner ─────────────────────────────────────────────── */
+#banner {
+    color: $accent;
+    text-style: bold;
+    width: auto;
+    height: auto;
+}
+
+#subtitle {
+    color: $text-disabled;
+    text-style: italic;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+
+/* ── Main Menu ──────────────────────────────────────────── */
+#menu {
+    width: 32;
+    height: auto;
+    border: none;
+    background: transparent;
+}
+
+OptionList > .option-list--option-highlighted {
+    background: $accent 20%;
+    color: $accent;
+    text-style: bold;
+}
+
+/* ── Category / Source Lists ────────────────────────────── */
+#category-list,
+#source-list,
+#cred-list,
+#cred-category-list,
+#cred-source-list,
+#query-list {
+    width: 50;
+    height: 1fr;
+    margin: 1 2;
+    border: solid $primary;
+}
+
+#cat-title {
+    color: $text;
+    text-style: bold;
+    padding: 1 2;
+}
+
+#cat-container {
+    height: 1fr;
+}
+
+/* ── Source Error ───────────────────────────────────────── */
+#source-error {
+    color: $error;
+    text-style: bold;
+    padding: 2 2;
+}
+
+#source-unimplemented {
+    color: $text-disabled;
+    text-style: italic;
+    padding: 2 2;
+    height: auto;
+}
+
+/* ── Source Screen ──────────────────────────────────────── */
+#source-container {
+    padding: 1 2;
+}
+
+#source-name {
+    text-style: bold;
+    color: $accent;
+}
+
+#source-desc {
+    color: $text-disabled;
+    margin-bottom: 1;
+}
+
+.section-title {
+    text-style: bold;
+    color: $secondary;
+    margin-top: 1;
+    margin-bottom: 0;
+}
+
+.param-label {
+    margin-top: 1;
+    margin-bottom: 0;
+    color: $text;
+}
+
+.param-input {
+    width: 40;
+}
+
+.cred-status {
+    margin-left: 2;
+    color: $text;
+}
+
+#button-row {
+    margin-top: 2;
+    height: 3;
+}
+
+#button-row Button {
+    margin-right: 1;
+}
+
+#result-area {
+    color: $success;
+    margin-top: 1;
+    text-style: bold;
+}
+
+/* ── Credential Form ────────────────────────────────────── */
+#cred-form-container {
+    padding: 1 2;
+}
+
+#cred-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+.cred-input {
+    width: 50;
+}
+
+#cred-buttons {
+    margin-top: 1;
+    height: 3;
+}
+
+#cred-buttons Button {
+    margin-right: 1;
+}
+
+#cred-message {
+    margin-top: 1;
+    color: $success;
+}
+
+/* ── Query Name Screen ──────────────────────────────────── */
+#query-name-container {
+    padding: 2 4;
+}
+
+#query-name-label {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#query-name-input {
+    width: 40;
+    margin-bottom: 1;
+}
+
+/* ── Jobs ───────────────────────────────────────────────── */
+#jobs-title {
+    text-style: bold;
+    color: $accent;
+    padding: 1 2;
+}
+
+#job-table-widget {
+    height: 1fr;
+    margin: 0 2;
+}
+
+/* ── Job Detail ─────────────────────────────────────────── */
+#job-detail-container {
+    padding: 1 2;
+}
+
+#job-detail-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+#job-detail-content {
+    color: $text;
+    margin-bottom: 1;
+}
+
+/* ── Settings ───────────────────────────────────────────── */
+#settings-container {
+    padding: 1 2;
+}
+
+#settings-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+.setting-line {
+    color: $text;
+    margin-left: 1;
+}
+
+/* ── Empty States ───────────────────────────────────────── */
+#sources-empty,
+#cat-empty,
+#cred-empty,
+#queries-empty {
+    color: $text-disabled;
+    text-style: italic;
+    padding: 2 4;
+    height: auto;
+}
+
+/* ── Status Bar ─────────────────────────────────────────── */
+#status-bar {
+    background: $panel;
+    color: $text-disabled;
+    padding: 0 1;
+    text-style: italic;
+}
