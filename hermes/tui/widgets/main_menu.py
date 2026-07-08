@@ -50,6 +50,8 @@ class MainMenu(App):
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         choice = event.option.id
+        if choice == 'data_sources':
+            self.push_screen(MainScreenTree)
         if choice == "exit":
             self.exit()
         else:
