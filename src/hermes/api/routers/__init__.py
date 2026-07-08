@@ -1,1 +1,0 @@
-# Hermes API routers package
