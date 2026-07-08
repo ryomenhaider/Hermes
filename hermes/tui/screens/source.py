@@ -113,10 +113,13 @@ class SourceScreen(Screen):
                 data = connector.fetch(**params)
                 elapsed = time.time() - t0
                 row_count = len(data) if isinstance(data, list) else 0
+                destination = self._get_destination()
+                if destination and data:
+                    connector.export(data, destination)
                 self.app.job_manager.update(  # type: ignore[attr-defined]
                     job_id, status="success", rows=row_count, runtime=elapsed,
                 )
-                result.update(f"Success — {row_count} rows in {elapsed:.1f}s")
+                result.update(f"Success — {row_count} rows → {destination or 'not saved'} in {elapsed:.1f}s")
             else:
                 self.app.job_manager.update(job_id, status="failed", error="Connector not available")  # type: ignore[attr-defined]
                 result.update("Connector not available (not yet implemented)")
