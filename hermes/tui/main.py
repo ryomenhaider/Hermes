@@ -1,19 +1,13 @@
 from textual.app import App
-from pages.fred_tui import FredTUI
-from widgets.tree import MainScreenTree
 from widgets.footers import HermesFooter
 from widgets.headers import HermesHeader
-
+from widgets.main_menu import MainMenu
 class Hermes(App):
-    
-    SCREENS = {
-        "fred": FredTUI,
-    }
 
     def compose(self):
         yield HermesHeader
 
-        
+        yield MainMenu
 
         yield HermesFooter
 
