@@ -1,8 +1,8 @@
-from hermes.tui.pages.fred_tui import FredTUI
+from hermes.tui.app import Hermes
 
 
 def main():
-    app = FredTUI()
+    app = Hermes()
     app.run()
 
 
