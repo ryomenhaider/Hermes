@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
-
+import pandas as pd
 
 class Connector(ABC):
 
@@ -21,7 +21,7 @@ class Connector(ABC):
         ...
 
     @abstractmethod
-    def transform(self) -> list[dict[str, Any]]:
+    def transform(self) -> pd.DataFrame:
         ...
 
     @abstractmethod
@@ -29,5 +29,5 @@ class Connector(ABC):
         ...
 
     @abstractmethod
-    def health_check(self) -> bool:
+    def health_check(self) -> dict:
         ...
