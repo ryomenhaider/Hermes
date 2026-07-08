@@ -89,7 +89,9 @@ def _discover_connectors() -> list[dict[str, Any]]:
                             and issubclass(obj, Connector)
                             and not inspect.isabstract(obj)
                         ):
-                            discovered.append(obj.metadata())
+                            meta = obj.metadata()
+                    meta["_connector_class"] = obj
+                    discovered.append(meta)
                 except Exception:
                     logger.debug("Could not discover connectors from %s", module_name)
             _walk_for_connectors(entry, f"{package_prefix}.{entry.name}")

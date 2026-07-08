@@ -16,6 +16,7 @@ from hermes.tui.widgets.parameter_form import ParameterForm, DestinationSelector
 class SourceScreen(Screen):
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
+        ("f5", "fetch", "Fetch"),
     ]
 
     def __init__(self, source_id: str) -> None:
@@ -109,7 +110,7 @@ class SourceScreen(Screen):
             connector = self._load_connector(src["id"])
             if connector:
                 connector.authenticate()
-                data = connector.fetch()
+                data = connector.fetch(**params)
                 elapsed = time.time() - t0
                 row_count = len(data) if isinstance(data, list) else 0
                 self.app.job_manager.update(  # type: ignore[attr-defined]
@@ -140,12 +141,10 @@ class SourceScreen(Screen):
 
     def _load_connector(self, source_id: str) -> Any:
         try:
-            mod_path = f"hermes.connectors.{source_id}.connector"
-            mod = __import__(mod_path, fromlist=[""])
-            for attr in dir(mod):
-                obj = getattr(mod, attr)
-                if isinstance(obj, type) and hasattr(obj, "fetch"):
-                    return obj()
+            src = self.app.registry.get(source_id)  # type: ignore[attr-defined]
+            if src and "_connector_class" in src:
+                cls = src["_connector_class"]
+                return cls()
             return None
         except Exception:
             return None
