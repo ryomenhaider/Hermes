@@ -1,1 +1,0 @@
-# Hermes connectors package
