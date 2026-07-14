@@ -79,25 +79,25 @@ class FredLogic:
 
                 logger.info('✔ The data are observations, doing further inspections')
                 observations = data['observations']
-                complete = True
+                issues = 0
 
                 for index, obs in enumerate(observations):
                     if 'date' not in obs:
                         logger.warning(f'At {index}, the date is missing')
-                        complete = False
+                        issues += 1
                         continue
 
                     if 'value' not in obs:
                         logger.warning(f'At {index}, the value is missing')
-                        complete = False
+                        issues += 1
                         continue
 
                     if obs.get('value') == '.':
                         logger.warning(f'The value at {index} is "."')
                         continue
 
-                if not complete:
-                    logger.error('Observations contain missing or placeholder values')
+                if issues > 0:
+                    logger.error(f'Observations contain missing or placeholder values, Total Issues: {issues}')
                     return False
 
                 return True
