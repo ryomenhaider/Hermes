@@ -2,111 +2,171 @@ import httpx
 from typing import Literal
 import pandas as pd
 import logging
-
+import time
 logger = logging.getLogger(__name__)
 
 class FredLogic:
-
-    def __init__(self, api: str):
-        if api:
-            self._api = api
-        else:
-            raise ValueError('The Api is not given')
         
-    def fetch_obs(self, series_id: str) -> list[dict]:
+    def fetch_obs(self, series_id: str, _api: str) -> tuple[dict, list]:
 
-        _url = f'https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={self._api}&file_type=json'
-        
+        _url = f'https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={_api}&file_type=json'
+
         resp = httpx.get(_url)
         resp.raise_for_status()
 
-        resp = httpx.get(_url)
-        
-        dat = resp.json()
-        
-        data = dat['observations']
-        
-        return data
+        data = resp.json()
+        obs = data['observations']
+
+        return data, obs
     
-    def fetch_metadata(self, series_id: str) -> dict:
-        
-        _url = f'https://api.stlouisfed.org/fred/series?series_id={series_id}&api_key={self._api}&file_type=json'
+    def fetch_metadata(self, series_id: str, _api: str) -> dict:
+
+        _url = f'https://api.stlouisfed.org/fred/series?series_id={series_id}&api_key={_api}&file_type=json'
 
         resp = httpx.get(_url)
-
         resp.raise_for_status()
 
-        data = resp.content
-        data = data.decode()
+        data = resp.json()
+        series = data['seriess'][0]
+        return series
 
-        return data
-
-    def validate(self, data, type: str = Literal['metadata', 'obs']) -> bool:
+    def validate(self, data, type: Literal['metadata', 'obs']) -> bool:
 
         if type == 'metadata':
-            
             try:
-                if 'seriess' not in data:
+                if not isinstance(data, dict) or 'seriess' not in data:
                     logger.warning('The Data is not MetaData')
                     return False
-                
-                elif 'seriess' in data:
-                    logger.info('✔ Data is MetaData')
-                    logger.info('Conducting futher Inspection')
-                    series = data['seriess']
-                    
-                    checks = ["id", "title", "frequency", "notes", "unit"]
-                    
-                    in_y = 0
-                    in_n = 0
 
-                    for i in checks:
-                        if i in series:
-                            logger.info(f'✔ {i} is in data')
-                            in_y += 1
-                            continue
+                logger.info('✔ Data is MetaData')
+                logger.info('Conducting further inspection')
+                series = data['seriess'][0]
 
-                        elif i not in series:
-                            logger.warning(f'✔ {i} not in data')
-                            in_n += 1
-                            continue
-                    
-                    if in_n < 1:
-                        logger.error('Data is incomplete')
-                        return False
-                    elif in_n == 0:
-                        logger.info('✔ Data is complete')
-                        return True
+                checks = ["id", "title", "frequency", "notes", "units"]
+                missing = [field for field in checks if field not in series]
 
-            except Exception as e:
-                logger.error(f'Error: {e}')    
+                for field in checks:
+                    if field in series:
+                        logger.info(f'✔ {field} is in data')
+                    else:
+                        logger.warning(f'✖ {field} not in data')
 
-
-        if type == 'obs':
-            
-            try:
-
-                if 'observations' not in data:
-                    logger.error('The data are not observations')
+                if missing:
+                    logger.error('Data is incomplete')
                     return False
-                
-                elif 'observations' in data:
-                    logger.info(f'✔ The data are observation \n there are {data['count']} observations \n doing futher inspections')
-                    observations = data['observations']
-                    m = 0
-                    for index, obs in enumerate(observations):
-                        if 'date' not in obs:
-                            logger.warning(f'At {index}, the date is missing')
-                            continue
 
-                        elif 'value' not in obs:
-                            logger.warning(f'At {index}, the value is missing')
-                            continue
-
-                        elif obs['value'] == '.':
-                            logger.warning(f'The value at {index} of value is "."')
-                            m += 1
-                            continue       
+                logger.info('✔ Data is complete')
+                return True
 
             except Exception as e:
                 logger.error(f'Error: {e}')
+                return False
+
+        elif type == 'obs':
+            try:
+                if not isinstance(data, dict) or 'observations' not in data:
+                    logger.error('The data are not observations')
+                    return False
+
+                logger.info('✔ The data are observations, doing further inspections')
+                observations = data['observations']
+                complete = True
+
+                for index, obs in enumerate(observations):
+                    if 'date' not in obs:
+                        logger.warning(f'At {index}, the date is missing')
+                        complete = False
+                        continue
+
+                    if 'value' not in obs:
+                        logger.warning(f'At {index}, the value is missing')
+                        complete = False
+                        continue
+
+                    if obs.get('value') == '.':
+                        logger.warning(f'The value at {index} is "."')
+                        continue
+
+                if not complete:
+                    logger.error('Observations contain missing or placeholder values')
+                    return False
+
+                return True
+
+            except Exception as e:
+                logger.error(f'Error: {e}')
+                return False
+
+        else:
+            logger.error(f"The type should only be 'metadata' or 'obs', you gave {type!r}")
+            return False
+
+    def transform(self, data, type: Literal['metadata', 'obs']) -> pd.DataFrame:
+
+        if type == 'metadata':
+
+            series = data['seriess'] if 'seriess' in data else [data]
+            df = pd.DataFrame(series).set_index('id')
+
+            date_cols = ['realtime_start', 'realtime_end', 'observation_start', 'observation_end']
+            for col in date_cols:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col])
+
+            if 'popularity' in df.columns:
+                df['popularity'] = pd.to_numeric(df['popularity'], errors='coerce')
+
+            return df
+        
+        if type == 'obs':
+            
+            return (
+                pd.DataFrame(data['observations'])
+                .assign(
+                    date           = lambda x: pd.to_datetime(x['date']),
+                    value          = lambda x: pd.to_numeric(x['value'], errors='coerce'),
+                    realtime_start = lambda x: pd.to_datetime(x['realtime_start']),
+                    realtime_end   = lambda x: pd.to_datetime(x['realtime_end'])
+                )
+                .set_index('date')
+                .sort_index()
+            )
+        
+        raise ValueError(f"Invalid type: {type!r}. Must be 'metadata' or 'obs'.")
+    
+    def export(self, data: pd.DataFrame, filetype: str) -> str:
+
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError("data must be a pandas DataFrame")
+
+        ts = time.time()
+        path = f'data/{ts}.{filetype}'
+
+        if filetype == 'json':
+            data.reset_index().to_json(path, orient='records', date_format='iso')
+
+        elif filetype == 'csv':
+            data.to_csv(path, date_format='iso')
+
+        elif filetype == 'parquet':
+            data.to_parquet(path)
+
+        elif filetype == 'pickle':
+            data.to_pickle(path)
+
+        else:
+            raise ValueError(f"Unsupported filetype: {filetype!r}")
+
+        logger.info(f'Exported to {path}')
+        return path
+    
+
+class fred:
+
+    def __init__(self):
+        self.fred_logic = FredLogic()
+
+    def fred_api(api: str):
+        return api
+    
+    
