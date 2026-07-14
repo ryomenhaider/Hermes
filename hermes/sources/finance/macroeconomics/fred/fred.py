@@ -24,9 +24,7 @@ class FredLogic:
         data = resp.content
         data = data.decode()
 
-        obs = data['observations']
-
-        return data, obs
+        return data
     
     def fetch_metadata(self, series_id: str, _api: str) -> dict:
 
@@ -196,7 +194,7 @@ class Fred:
                 """
             )
         
-        data, obs = self.fred_logic.fetch_obs(series_id=series_id, _api=api)
+        data = self.fred_logic.fetch_obs(series_id=series_id, _api=api)
 
         vl = self.fred_logic.validate(data, type='obs')
         
@@ -207,9 +205,3 @@ class Fred:
         else:
             raise RuntimeError('The Data is not valid for application')
 
-
-if __name__ == '__main__':
-    fred = fred()
-    api = fred.fred_api(FRED_API)
-    data = fred.get_series('A191RL1Q225SBEA', api=api)
-    print(data)
