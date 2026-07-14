@@ -168,7 +168,7 @@ class FredLogic:
         return path
     
 
-class fred:
+class Fred:
 
     def __init__(self):
         self.fred_logic = FredLogic()
