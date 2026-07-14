@@ -166,7 +166,30 @@ class fred:
     def __init__(self):
         self.fred_logic = FredLogic()
 
-    def fred_api(api: str):
+    def fred_api(self, api: str):
         return api
     
-    
+    def get_series(self, series_id : str, api: str):
+        if not api:
+            raise ValueError("""
+                You must provide an Fred API
+                You can obtain it by getting the API from the official FRED website
+                And then you can call the hermes inbuild function fred_api() function to just set it up
+                like this
+                        api = fred.fred_api('XXXXXXXXXXXXXX')
+                and then after you can use it like this
+                        data = get_series('GDP', api)
+                             
+                NOTE: The data return is transformed and in pd.DataFrame
+            """)
+        
+        data, obs = self.fred_logic.fetch_obs(series_id=series_id, _api=api)
+
+        vl = self.fred_logic.validate(data, type='obs')
+        
+        if vl:
+            transformed_data = self.fred_logic.transform(data, type='obs')
+            return transformed_data
+        
+        else:
+            raise RuntimeError('The Data is not valid for application')
