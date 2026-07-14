@@ -443,9 +443,9 @@ wheels = [
 ]
 
 [[package]]
-name = "hermes"
+name = "hermes-plt"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },
     { name = "dotenv" },

@@ -3,7 +3,14 @@ from typing import Literal
 import pandas as pd
 import logging
 import time
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 logger = logging.getLogger(__name__)
+
+FRED_API = os.getenv('FRED_API')
 
 class FredLogic:
         
@@ -171,17 +178,19 @@ class fred:
     
     def get_series(self, series_id : str, api: str):
         if not api:
-            raise ValueError("""
-                You must provide an Fred API
-                You can obtain it by getting the API from the official FRED website
-                And then you can call the hermes inbuild function fred_api() function to just set it up
-                like this
-                        api = fred.fred_api('XXXXXXXXXXXXXX')
-                and then after you can use it like this
-                        data = get_series('GDP', api)
-                             
-                NOTE: The data return is transformed and in pd.DataFrame
-            """)
+            raise ValueError(
+                """
+                    You must provide an Fred API
+                    You can obtain it by getting the API from the official FRED website
+                    And then you can call the hermes inbuild function fred_api() function to just set it up
+                    like this
+                            api = fred.fred_api('XXXXXXXXXXXXXX')
+                    and then after you can use it like this
+                            data = get_series('GDP', api)
+                                
+                    NOTE: The data return is transformed and in pd.DataFrame
+                """
+            )
         
         data, obs = self.fred_logic.fetch_obs(series_id=series_id, _api=api)
 
@@ -193,3 +202,10 @@ class fred:
         
         else:
             raise RuntimeError('The Data is not valid for application')
+
+
+if __name__ == '__main__':
+    fred = fred()
+    api = fred.fred_api(FRED_API)
+    data = fred.get_series('A191RL1Q225SBEA', api=api)
+    print(data)
