@@ -21,7 +21,9 @@ class FredLogic:
         resp = httpx.get(_url)
         resp.raise_for_status()
 
-        data = resp.json()
+        data = resp.content
+        data = data.decode()
+
         obs = data['observations']
 
         return data, obs
@@ -33,7 +35,9 @@ class FredLogic:
         resp = httpx.get(_url)
         resp.raise_for_status()
 
-        data = resp.json()
+        data = resp.content
+        data = data.decode()
+        
         series = data['seriess'][0]
         return series
 
