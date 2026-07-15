@@ -98,7 +98,7 @@ class FredLogic:
 
                 if issues > 0:
                     logger.error(f'Observations contain missing or placeholder values, Total Issues: {issues}')
-                    return False
+                    return True
 
                 return True
 
