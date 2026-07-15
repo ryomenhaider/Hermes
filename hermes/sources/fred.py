@@ -66,6 +66,7 @@ class FredLogic:
             except Exception as e:
                 logger.error(f'Error: {e}')
                 return False
+
         elif type == 'obs':
             try:
                 if 'observations' not in data:
@@ -201,4 +202,3 @@ class Fred:
         
         else:
             raise RuntimeError('The Data is not valid for application')
-
