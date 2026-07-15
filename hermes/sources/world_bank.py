@@ -190,13 +190,7 @@ class World_Bank:
 
     def __init__(self):
         self.wb = WBLogic()
-        self._connected = False
-
-    def connect(self) -> bool:
-        self._connected = True
-        logger.info('World Bank connector ready (no key needed)')
-        return True
-
+    
     def get_indicators(self):
         url = f"{WB_BASE}/indicator?format=json&per_page=10000"
         r = httpx.get(url)
@@ -204,6 +198,7 @@ class World_Bank:
         r = r.json()
         dat = r[1]
         data = []
+
         for d in dat:
             data.append({
                 "indicator_code": d['id'],
@@ -212,6 +207,7 @@ class World_Bank:
                 "description": d['sourceNote'],
                 "source": d['source']['value']
             })
+        
         return data
 
     def search_indicators(self, query: str) -> list[dict]:
@@ -249,28 +245,6 @@ class World_Bank:
 
     def get_countries_by_income(self, income_level: str) -> list[dict]:
         return self.wb.fetch_countries_by(income_level=income_level)
-
-    def world_bank_data(
-        self,
-        indicator: str,
-        country: str = "all",
-        date_range: str = None,
-        most_recent: int = None,
-        frequency: str = None,
-        per_page: int = 10000,
-        export: bool | None = None,
-        filetype: str = 'json'
-    ):
-        return self.get_data(
-            indicator=indicator,
-            country=country,
-            date_range=date_range,
-            most_recent=most_recent,
-            frequency=frequency,
-            per_page=per_page,
-            export=export,
-            filetype=filetype,
-        )
 
     def get_data(
         self,
@@ -316,6 +290,7 @@ class World_Bank:
         export: bool | None = None,
         filetype: str = 'json',
     ) -> pd.DataFrame:
+    
         frames = {}
         for code in indicators:
             raw = self.wb.fetch_worldbank(
