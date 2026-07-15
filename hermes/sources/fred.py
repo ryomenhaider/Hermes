@@ -174,7 +174,14 @@ class Fred:
     def fred_api(self, api: str):
         return api
     
-    def get_series(self, series_id : str, api: str):
+    def get_series(
+                self, 
+                series_id: str, 
+                api: str,
+                export: None | bool = None,
+                filetype: None | str = None
+        ):
+        
         if not api:
             raise ValueError(
                 """
@@ -196,9 +203,12 @@ class Fred:
         vl = self.fred_logic.validate(data, type='obs')
 
         print('========== TRANSFORMING OBSERVATION ==========')
+
         if vl == True:
             transformed_data = self.fred_logic.transform(data, type='obs')
-            self.fred_logic.export(transformed_data, 'json')
+            
+            if export == True:
+                self.fred_logic.export(transformed_data, filetype=filetype)
             
             return transformed_data
 
