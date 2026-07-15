@@ -20,21 +20,20 @@ from hermes import Hermes
 hr = Hermes()
 
 # FRED — US macro data (free key required)
-fred_api = hr.fred.connect("YOUR_API_KEY")
-gdp = hr.fred.get_series("GDP", api=fred_api)
+hr.fred.connect("YOUR_API_KEY")
+gdp = hr.fred.get_series("GDP")
+
+# FRED — search by keyword
+results = hr.fred.search_series("inflation")
+
+# FRED — multiple series in one DataFrame
+multi = hr.fred.get_multiple_series(["GDP", "UNRATE", "CPIAUCSL"])
 
 # World Bank — no key needed
-china_gdp = hr.world_bank.get_indicator("NY.GDP.MKTP.CD", country="CHN")
+china_gdp = hr.world_bank.get_data("NY.GDP.MKTP.CD", country="CHN")
 
-# IMF — no key needed
-imf_data = hr.imf.get_data("IFS", country="US", indicator="NGDP_XDC")
-
-# GDELT — no key needed
-events = hr.gdelt.query_events(
-    countries=["UKR", "RUS"],
-    themes=["CONFLICT", "MILITARY"],
-    start_date="2024-01-01",
-)
+# World Bank — browse indicators
+hr.world_bank.search_indicators("gdp")
 
 # Feature engineering
 from hermes.features import FeatureEngineer

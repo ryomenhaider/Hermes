@@ -1,6 +1,6 @@
 [project]
 name = "hermes-plt"
-version = "0.1.9"
+version = "0.1.10"
 description = "Foundational intelligence data platform for acquiring, validating, normalizing, storing, and serving intelligence datasets"
 readme = "README.md"
 requires-python = ">=3.11"
