@@ -215,7 +215,7 @@ class World_Bank:
         data = r[1]
         return data
 
-    def world_bank(
+    def world_bank_data(
             self,
             indicator: str,
             country: str = "all",
