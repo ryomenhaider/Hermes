@@ -1,4 +1,4 @@
-from hermes.sources.finance.macroeconomics.fred import Fred
+from hermes.sources.fred import Fred
 
 
 class Hermes:
