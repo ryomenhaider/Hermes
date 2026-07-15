@@ -69,20 +69,20 @@ $ hermes cache clear --older-than 7d
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              HERMES SDK                                     │
-│                    from hermes import Hermes                                 │
+│                    from hermes import Hermes                                │
 │                                                                             │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │                         CONNECTOR LAYER                               │  │
-│  │  FRED  World Bank  IMF  GDELT  NewsAPI  UN Comtrade  BIS  OECD  ...  │  │
+│  │  FRED  World Bank  IMF  GDELT  NewsAPI  UN Comtrade  BIS  OECD  ...   │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 │                                   ▼                                         │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │                      CORE / CLEANING LAYER                            │  │
-│  │  • Schema normalization (ISO dates, ISO country codes, USD values)   │  │
+│  │  • Schema normalization (ISO dates, ISO country codes, USD values)    │  │
 │  │  • Missing value handling (forward-fill, interpolation)               │  │
 │  │  • Frequency alignment (D → M → Q → A)                                │  │
 │  │  • Outlier detection (IQR, Z-score, MAD)                              │  │
-│  │  • Deduplication (hash-based + fuzzy)                                  │  │
+│  │  • Deduplication (hash-based + fuzzy)                                 │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 │                                   ▼                                         │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
