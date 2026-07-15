@@ -198,7 +198,9 @@ class Fred:
         print('========== TRANSFORMING OBSERVATION ==========')
         if vl == True:
             transformed_data = self.fred_logic.transform(data, type='obs')
+            self.fred_logic.export(transformed_data, 'json')
+            
             return transformed_data
-        
+
         else:
             raise RuntimeError('The Data is not valid for application')
