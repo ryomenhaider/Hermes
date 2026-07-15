@@ -1,606 +1,186 @@
 # Hermes
 
-> The foundational intelligence data platform.
+> Universal data acquisition and feature engineering SDK for intelligence, finance, and defense applications.
 
-Hermes is a production-grade data platform responsible for acquiring, validating, normalizing, storing, and serving intelligence datasets.
-
-It serves as the single source of truth for all downstream intelligence systems by transforming heterogeneous external datasets into a unified, reliable, versioned, and queryable internal representation.
-
-Hermes is the data foundation of the intelligence ecosystem.
-
----
-
-# Overview
-
-Intelligence-relevant data is fragmented across numerous providers, formats, and delivery mechanisms.
-
-Examples include:
-
-* ACLED conflict and protest events
-* GDELT global event streams
-* World Bank economic indicators
-* IMF macroeconomic indicators
-* OFAC sanctions data
-* FRED financial indicators
-* SIPRI defense and military expenditure data
-* UN Comtrade trade statistics
-
-Each source introduces unique challenges:
-
-* Different schemas
-* Different identifiers
-* Different update frequencies
-* Different quality standards
-* Different ingestion methods
-
-Without a centralized platform, every downstream application must repeatedly implement:
-
-* Data acquisition
-* Data cleaning
-* Data validation
-* Schema normalization
-* Data storage
-* Source integration
-
-Hermes centralizes these responsibilities and exposes a consistent internal data model.
-
----
-
-# Mission
-
-Provide a unified, reliable, auditable, and scalable intelligence data platform.
-
----
-
-# Architectural Role
+Hermes fetches data from 40+ free global sources, normalizes it, engineers intelligence-ready features, and exposes everything through a clean Python interface (with CLI and TUI). It is **not** an API server — it is an SDK you import, run, and own.
 
 ```text
-External Sources
-        │
-        ▼
-      Hermes
-        │
-        ▼
-      Aegis
-        │
-        ▼
-      Atlas
-        │
-        ▼
-   Applications
+pip install hermes-plt
+# or
+uv add hermes-plt
 ```
 
-Hermes is responsible only for data management.
-
-It does not perform analytics, forecasting, machine learning, or risk assessment.
-
 ---
 
-# Core Responsibilities
+## Quickstart
 
-## 1. Data Acquisition
+```python
+from hermes import Hermes
 
-Hermes acquires datasets from external providers.
+hr = Hermes()
 
-Supported ingestion methods include:
+# FRED — US macro data (free key required)
+fred_api = hr.fred.connect("YOUR_API_KEY")
+gdp = hr.fred.get_series("GDP", api=fred_api)
 
-* REST APIs
-* Bulk downloads
-* CSV exports
-* JSON feeds
-* XML feeds
+# World Bank — no key needed
+china_gdp = hr.world_bank.get_indicator("NY.GDP.MKTP.CD", country="CHN")
 
-Acquisition capabilities include:
+# IMF — no key needed
+imf_data = hr.imf.get_data("IFS", country="US", indicator="NGDP_XDC")
 
-* Authentication
-* Pagination
-* Rate limiting
-* Retry handling
-* Download orchestration
-* Incremental synchronization
+# GDELT — no key needed
+events = hr.gdelt.query_events(
+    countries=["UKR", "RUS"],
+    themes=["CONFLICT", "MILITARY"],
+    start_date="2024-01-01",
+)
 
----
-
-## 2. Data Validation
-
-All incoming data is validated before storage.
-
-Validation examples:
-
-* Required field verification
-* Timestamp validation
-* Country code validation
-* Numeric range validation
-* Duplicate detection
-* Referential integrity checks
-
-Invalid records may be:
-
-* Rejected
-* Quarantined
-* Logged for investigation
-
----
-
-## 3. Data Normalization
-
-Hermes converts source-specific schemas into canonical internal schemas.
-
-### Example
-
-Source schema:
-
-```json
-{
-  "event_id_cnty": "123",
-  "event_date": "2026-01-01"
-}
+# Feature engineering
+from hermes.features import FeatureEngineer
+fe = FeatureEngineer()
+risk = fe.build_country_risk_features(country="UKR", date="2026-07-14")
 ```
 
-Canonical Hermes schema:
-
-```json
-{
-  "event_id": "123",
-  "occurred_at": "2026-01-01"
-}
-```
-
-Downstream systems interact only with canonical Hermes models.
+Every connector returns a **pandas DataFrame**. Optional `export=True` saves to JSON, CSV, Parquet, or Pickle.
 
 ---
 
-## 4. Data Storage
-
-Hermes persists normalized datasets in structured storage systems.
-
-### Current Storage
-
-* PostgreSQL
-
-### Future Storage Targets
-
-* Parquet datasets
-* Object storage
-* Data lake architectures
-
-Storage requirements:
-
-* Queryable
-* Versioned
-* Auditable
-* Reliable
-* Transactional
-
----
-
-## 5. Metadata Management
-
-Hermes tracks operational and lineage metadata for every ingestion process.
-
-Examples include:
-
-* Synchronization history
-* Processing duration
-* Dataset versions
-* Failure rates
-* Record counts
-* Connector versions
-
-Every ingestion operation must be traceable.
-
----
-
-## 6. Data Serving
-
-Hermes exposes normalized datasets through APIs.
-
-Consumers never interact directly with external providers.
-
-All access flows through Hermes.
-
-Benefits include:
-
-* Consistent schemas
-* Stable interfaces
-* Centralized governance
-* Improved reliability
-
----
-
-# Non-Responsibilities
-
-Hermes intentionally does **not** perform:
-
-* Risk scoring
-* Country ranking
-* Forecast generation
-* Machine learning training
-* Machine learning inference
-* LLM inference
-* Knowledge graph analytics
-* Dashboard rendering
-* Strategic assessment
-
-These responsibilities belong to downstream systems.
-
----
-
-# Data Domains
-
-## Events
-
-Intelligence-relevant occurrences.
-
-Examples:
-
-* Protests
-* Riots
-* Armed conflict
-* Political violence
-
-Sources:
-
-* ACLED
-* GDELT
-
----
-
-## Economics
-
-Macroeconomic and financial indicators.
-
-Examples:
-
-* GDP
-* Inflation
-* Debt
-* Unemployment
-
-Sources:
-
-* IMF
-* World Bank
-* FRED
-
----
-
-## Trade
-
-International trade activity.
-
-Examples:
-
-* Imports
-* Exports
-* Trade balances
-
-Sources:
-
-* UN Comtrade
-
----
-
-## Sanctions
-
-Sanctions and enforcement information.
-
-Examples:
-
-* Entity sanctions
-* Country sanctions
-* Enforcement actions
-
-Sources:
-
-* OFAC
-
----
-
-## Defense
-
-Defense and military indicators.
-
-Examples:
-
-* Military expenditure
-* Arms transfers
-* Defense budgets
-
-Sources:
-
-* SIPRI
-
----
-
-# Canonical Data Philosophy
-
-Hermes standardizes all external data into canonical schemas.
-
-A canonical schema is the internal representation used regardless of source origin.
-
-### Example
-
-Source A:
-
-```json
-{
-  "country": "Pakistan"
-}
-```
-
-Source B:
-
-```json
-{
-  "nation": "Pakistan"
-}
-```
-
-Canonical representation:
-
-```json
-{
-  "country_name": "Pakistan"
-}
-```
-
-This ensures downstream consumers operate on a consistent data model.
-
----
-
-# Connector Architecture
-
-Every external source is isolated behind a dedicated connector.
+## Interfaces
+
+| Interface | Command | Purpose |
+|---|---|---|
+| **Python SDK** | `from hermes import Hermes` | Primary interface |
+| **CLI** | `$ hermes fetch <source> <indicator>` | Scripting, automation |
+| **TUI** | `$ hermes tui` | Terminal dashboard |
 
 ```text
-connectors/
-
-├── acled/
-├── gdelt/
-├── world_bank/
-├── imf/
-├── ofac/
-├── fred/
-├── sipri/
-└── un_comtrade/
+$ hermes fetch fred GDP --country USA --start 2020-01-01
+$ hermes fetch world-bank NY.GDP.MKTP.CD --country CHN
+$ hermes features build --country UKR --output risk_features.parquet
+$ hermes connectors list
+$ hermes cache clear --older-than 7d
 ```
 
-Each connector is responsible for:
+---
 
-* Fetching data
-* Validating source payloads
-* Mapping to canonical schemas
-* Persisting normalized records
+## Architecture
 
-Connectors are independently developed and maintained.
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              HERMES SDK                                     │
+│                    from hermes import Hermes                                 │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                         CONNECTOR LAYER                               │  │
+│  │  FRED  World Bank  IMF  GDELT  NewsAPI  UN Comtrade  BIS  OECD  ...  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                      CORE / CLEANING LAYER                            │  │
+│  │  • Schema normalization (ISO dates, ISO country codes, USD values)   │  │
+│  │  • Missing value handling (forward-fill, interpolation)               │  │
+│  │  • Frequency alignment (D → M → Q → A)                                │  │
+│  │  • Outlier detection (IQR, Z-score, MAD)                              │  │
+│  │  • Deduplication (hash-based + fuzzy)                                  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                   FEATURE ENGINEERING LAYER                           │  │
+│  │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────────┐  │  │
+│  │  │     Economic     │ │  Geopolitical   │ │       Composite        │  │  │
+│  │  │   • Growth       │ │   • Conflict    │ │  • Country Risk Score  │  │  │
+│  │  │   • Volatility   │ │   • Diplomatic  │ │  • Financial Stress    │  │  │
+│  │  │   • Inflation    │ │   • Protest     │ │  • Supply Chain Vuln.  │  │  │
+│  │  │   • External     │ │   • Governance  │ │  • Social Stability    │  │  │
+│  │  └─────────────────┘ └─────────────────┘ └─────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                   STORAGE & METADATA LAYER                            │  │
+│  │  Raw Cache (Parquet) · Feature Store · Metadata Registry · Lineage    │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                   ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                      USER INTERFACES                                  │  │
+│  │        Python SDK (Primary)    CLI    TUI (Terminal Dashboard)        │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-# Internal Architecture
+## Feature Engineering
 
-## Connector Layer
+Hermes transforms raw connector output into intelligence-ready features through a declarative pipeline. Features are versioned, cached, and documented in the metadata registry.
 
-Handles communication with external systems.
+### Economic
 
-Responsibilities:
+| Category | Examples | Input Sources | Output Use |
+|---|---|---|---|
+| Growth | GDP YoY/QoQ, industrial production growth | FRED, WB, IMF | Risk scoring, forecasting |
+| Volatility | Rolling std (12m), max drawdown, CV | FRED, IMF | Anomaly detection |
+| Stress | Credit spread, yield curve inversion | FRED, BIS | Financial risk |
+| External | Current account/GDP, FX reserves, debt/GDP | WB, IMF | Sovereign risk |
+| Inflation | CPI YoY, PPI, hyperinflation flag | FRED, WB | Monetary stability |
+| Labor | Unemployment, youth unemployment | FRED, WB, OECD | Social stability |
 
-* API interaction
-* Authentication
-* Download management
-* Synchronization orchestration
+### Geopolitical
 
----
-
-## Validation Layer
-
-Enforces data quality standards.
-
-Responsibilities:
-
-* Schema validation
-* Constraint validation
-* Duplicate detection
-* Data integrity checks
-
----
-
-## Mapping Layer
-
-Normalizes source-specific structures.
-
-Responsibilities:
-
-* Schema conversion
-* Field mapping
-* Type conversion
-* Canonical transformation
+| Category | Examples | Input Sources | Output Use |
+|---|---|---|---|
+| Conflict | Event count, Goldstein scale, battle deaths | GDELT, UCDP | Security risk |
+| Diplomatic | Treaty signings, diplomatic expulsions | GDELT | Political risk |
+| Protest | Event count, violence level, spread | GDELT | Social stability |
+| Governance | WGI composite, corruption, rule of law | WB, V-DEM | Institutional risk |
+| Media | News sentiment, narrative shift velocity | NewsAPI, GDELT GKG | Trend analysis |
 
 ---
 
-## Storage Layer
+## Sources
 
-Persists normalized datasets.
+### Build Order
 
-Responsibilities:
+| Prio | Connector | Key Required | Aegis Uses | Atlas Uses |
+|---|---|---|---|---|
+| W1 | FRED | Free (any email) | Economic risk, forecasting | Macro context |
+| W1 | World Bank | None | GDP, poverty, governance | Country properties |
+| W2 | IMF | None | Financial stats, BOP, WEO | Financial context |
+| W3 | BIS | None | Banking stress, credit | Financial institutions |
+| W3 | UN Comtrade | Free (any email) | Trade flows, sanctions | Trade relationships |
+| W4 | GDELT | None | Conflict, protest, events | Event / actor nodes |
+| W4 | UCDP | None | Armed conflict baseline | Conflict nodes |
+| W5 | NewsAPI | Free (any email) | RAG, sentiment, trends | Entity extraction |
+| W5 | FAO | None | Food security, prices | Commodity nodes |
+| W6 | OECD | None | Policy, tax, trade | Policy context |
+| W6 | Eurostat | None | EU economic data | EU country properties |
+| W7 | EIA | Free (any email) | Energy prices, production | Energy nodes |
+| W7 | IEA | Free account | Energy dependence | Energy relationships |
+| W8 | USGS | None | Minerals, earthquakes | Mineral / location nodes |
+| W8 | V-DEM | Free download | Democracy, regime type | Governance edges |
+| W9 | Freedom House | Free download | Political rights | Freedom properties |
+| W9 | Transparency Int. | Free download | Corruption index | Corruption properties |
+| W10 | ND-GAIN | None | Climate vulnerability | Climate risk properties |
+| W10 | EM-DAT | Free account | Natural disasters | Disaster event nodes |
+| W11 | NASA POWER | None | Climate data | Environmental context |
+| W11 | Open-Meteo | None | Weather, forecasts | Agricultural risk |
+| W12 | Wikidata | None | Entity resolution | Entity enrichment |
+| W12 | OpenStreetMap | None | Geocoding, boundaries | Location nodes |
 
-* Database interaction
-* Transactions
-* Version management
-* Persistence operations
+### Complete Inventory (40+ sources)
 
----
+**Economic & Financial** — FRED ✅ · World Bank ✅ · IMF · BIS · UN Comtrade · OECD · Eurostat · Penn World Table · Maddison Project · CEPII
 
-## Metadata Layer
+**Geopolitical & Conflict** — GDELT · UCDP · PRIO / Prio Grid · Correlates of War · SIPRI Arms Transfers · Polity IV / V-DEM · CIRI Human Rights · Freedom House · Transparency International · Reporters Without Borders · Fragile States Index · Fund for Peace
 
-Tracks operational information and lineage.
+**Environmental, Social & Commodity** — FAO · IEA · EIA · USGS · ND-GAIN · EM-DAT · NASA POWER · Open-Meteo · Our World in Data · UN Data
 
-Responsibilities:
+**Media, Knowledge & Geospatial** — NewsAPI · GDELT GKG · Wikidata · Wikipedia API · OpenStreetMap · Natural Earth · Sentinel Hub · OpenCorporates
 
-* Run history
-* Dataset lineage
-* Audit records
-* Data provenance
-
----
-
-## API Layer
-
-Provides access to stored datasets.
-
-Responsibilities:
-
-* Query interfaces
-* Filtering
-* Pagination
-* Data retrieval
-
----
-
-# Core Entities
-
-## Country
-
-Represents sovereign entities.
-
-Examples:
-
-* Pakistan
-* India
-* China
+All sources are free to access. None require an institutional (.edu/.org/.gov) email.
 
 ---
 
-## Event
+## License
 
-Represents intelligence-relevant occurrences.
-
-Examples:
-
-* Protest
-* Conflict
-* Riot
-
----
-
-## Indicator
-
-Represents measurable metrics.
-
-Examples:
-
-* GDP
-* Inflation
-* Debt
-
----
-
-## TradeRecord
-
-Represents trade activity.
-
-Examples:
-
-* Imports
-* Exports
-
----
-
-## SanctionRecord
-
-Represents sanctions-related information.
-
-Examples:
-
-* Entity sanctions
-* Country sanctions
-
----
-
-# Dataset Lineage
-
-Hermes maintains full lineage tracking.
-
-Each record should retain:
-
-* Source system
-* Source identifier
-* Connector version
-* Ingestion timestamp
-* Processing run identifier
-* Dataset version
-* Record origin metadata
-
-Every stored record must be traceable back to its source.
-
----
-
-# Observability
-
-Hermes continuously monitors platform health.
-
-Metrics include:
-
-* Connector failures
-* Synchronization duration
-* Records processed
-* Records rejected
-* Data freshness
-* API performance
-* Storage utilization
-
-Observability enables reliable operations and rapid issue detection.
-
----
-
-# Reliability Requirements
-
-Hermes is designed for resilient data operations.
-
-Requirements include:
-
-* Retry mechanisms
-* Idempotent ingestion
-* Duplicate protection
-* Transactional writes
-* Failure recovery
-* Fault isolation
-* Auditability
-
----
-
-# Scalability Requirements
-
-Hermes must scale without architectural redesign.
-
-The platform should support:
-
-* Additional connectors
-* Additional datasets
-* Increased ingestion volume
-* Increased storage volume
-* Multiple downstream consumers
-* Future storage backends
-
----
-
-# Long-Term Vision
-
-Hermes serves as the intelligence data backbone for the broader ecosystem.
-
-Future platforms should consume data exclusively through Hermes, including:
-
-* Aegis
-* Atlas
-* Aion
-* Internal analytics systems
-* Research platforms
-* Decision-support tools
-
-By centralizing acquisition, validation, normalization, storage, and serving, Hermes ensures that data infrastructure is implemented once and reused everywhere.
-
----
-
-# Guiding Principle
-
-> Acquire once. Normalize once. Validate once. Serve everywhere.
+MIT
