@@ -217,10 +217,35 @@ class World_Bank:
 
     def world_bank(
             self,
-            
+            indicator: str,
+            country: str = "all",
+            date_range: str = None,
+            most_recent: int = None,
+            frequency: str = None,
+            per_page: int = 10000,
             export: bool | None = None,
+            filetype: str = 'json'
     ):
 
         data = self.wb.fetch_worldbank(
-
+            indicator=indicator,
+            country=country,
+            date_range=date_range,
+            most_recent=most_recent,
+            frequency=frequency,
+            per_page=per_page
         )
+
+        vl = self.wb.validate_worldbank(data=data)
+
+        if vl:
+            transformed_data = self.wb.transform(data=data)
+            
+            if export == True:
+                self.wb.export(transformed_data, filetype=filetype)
+                return transformed_data
+            
+            return transformed_data
+        
+        else:
+            raise RuntimeError('The Data is not valid for application')

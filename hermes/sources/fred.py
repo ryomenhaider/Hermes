@@ -196,14 +196,10 @@ class Fred:
                     NOTE: The data return is transformed and in pd.DataFrame
                 """
             )
-        print('============ FETCHING OBSERVATION ============')
         data = self.fred_logic.fetch_obs(series_id=series_id, _api=api)
 
-        print('=========== VALIDATING OBSERVATION ===========')
         vl = self.fred_logic.validate(data, type='obs')
-
-        print('========== TRANSFORMING OBSERVATION ==========')
-
+        
         if vl == True:
             transformed_data = self.fred_logic.transform(data, type='obs')
             
