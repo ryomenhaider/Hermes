@@ -14,17 +14,14 @@ FRED_API = os.getenv('FRED_API')
 
 class FredLogic:
         
-    def fetch_obs(self, series_id: str, _api: str) -> tuple[dict, list]:
+    def fetch_obs(self, series_id: str, _api: str) -> dict:
 
         _url = f'https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={_api}&file_type=json'
 
         resp = httpx.get(_url)
         resp.raise_for_status()
 
-        data = resp.content
-        data = data.decode()
-
-        return data
+        return resp.json()
     
     def fetch_metadata(self, series_id: str, _api: str) -> dict:
 
@@ -33,8 +30,7 @@ class FredLogic:
         resp = httpx.get(_url)
         resp.raise_for_status()
 
-        data = resp.content
-        data = data.decode()
+        data = resp.json()
         
         series = data['seriess'][0]
         return series
@@ -70,7 +66,6 @@ class FredLogic:
             except Exception as e:
                 logger.error(f'Error: {e}')
                 return False
-
         elif type == 'obs':
             try:
                 if 'observations' not in data:
