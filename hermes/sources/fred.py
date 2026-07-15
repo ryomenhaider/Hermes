@@ -73,7 +73,7 @@ class FredLogic:
 
         elif type == 'obs':
             try:
-                if not isinstance(data, dict) or 'observations' not in data:
+                if 'observations' not in data:
                     logger.error('The data are not observations')
                     return False
 
