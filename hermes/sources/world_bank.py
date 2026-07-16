@@ -112,27 +112,32 @@ class WBLogic:
     def transform(self, data: list[dict]) -> pd.DataFrame:
         if not data:
             return pd.DataFrame(
-                columns=["country", "country_iso3", "indicator_id", "indicator_name", "date", "value"]
+                columns=["date", "country_iso3", "indicator_id", "value", "source"]
             )
 
         df = pd.json_normalize(data)
 
         df = df.rename(
             columns={
-                "country.value": "country",
                 "countryiso3code": "country_iso3",
                 "indicator.id": "indicator_id",
-                "indicator.value": "indicator_name",
             }
         )
 
-        df = df[["country", "country_iso3", "indicator_id", "indicator_name", "date", "value"]]
+        df = (
+            df
+            .assign(
+                date         = lambda x: pd.to_datetime(x["date"].str[:4]),
+                indicator_id = lambda x: x["indicator_id"].astype(str),
+                value        = lambda x: pd.to_numeric(x["value"], errors="coerce"),
+                source       = "World Bank",
+            )
+            [["date", "country_iso3", "indicator_id", "value", "source"]]
+        )
 
         df = df.dropna(subset=["value"])
 
-        df["date"] = df["date"].apply(self._parse_wb_date)
-
-        df = df.sort_values(["country", "date"]).reset_index(drop=True)
+        df = df.sort_values(["country_iso3", "date"]).reset_index(drop=True)
 
         return df
 
