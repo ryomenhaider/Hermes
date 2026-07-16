@@ -20,7 +20,7 @@ class FredLogic:
         url = f'{FRED_BASE}/series/observations?series_id={series_id}&api_key={_api}&file_type=json'
         resp = httpx.get(url)
         resp.raise_for_status()
-        return resp.json()
+        return series_id ,resp.json()
 
     def fetch_metadata(self, series_id: str, _api: str) -> dict:
         url = f'{FRED_BASE}/series?series_id={series_id}&api_key={_api}&file_type=json'
@@ -116,7 +116,8 @@ class FredLogic:
             logger.error(f"The type should only be 'metadata' or 'obs', you gave {type!r}")
             return False
 
-    def transform(self, data, type: Literal['metadata', 'obs']) -> pd.DataFrame:
+    def transform(self, data, series_id: str, type: Literal['metadata', 'obs']) -> pd.DataFrame:
+        
         if type == 'metadata':
             series = data['seriess'] if 'seriess' in data else [data]
             df = pd.DataFrame(series).set_index('id')
@@ -136,9 +137,10 @@ class FredLogic:
                 pd.DataFrame(data['observations'])
                 .assign(
                     date           = lambda x: pd.to_datetime(x['date']),
+                    country_iso3   = 'USA',
+                    indicator_id   = series_id,
                     value          = lambda x: pd.to_numeric(x['value'], errors='coerce'),
-                    realtime_start = lambda x: pd.to_datetime(x['realtime_start']),
-                    realtime_end   = lambda x: pd.to_datetime(x['realtime_end'])
+                    source         = 'FRED'
                 )
                 .set_index('date')
                 .sort_index()
@@ -151,6 +153,8 @@ class FredLogic:
         if not seriess:
             return pd.DataFrame(columns=['id', 'title', 'frequency', 'units', 'popularity'])
         return pd.DataFrame(seriess)
+    
+
 
     def export(self, data: pd.DataFrame, filetype: str) -> str:
         if not isinstance(data, pd.DataFrame):
@@ -218,12 +222,12 @@ class Fred:
             raise ValueError(
                 "Provide an API key via .connect('KEY') or pass api='KEY'"
             )
-        data = self.fred_logic.fetch_obs(series_id=series_id, _api=key)
+        id, data = self.fred_logic.fetch_obs(series_id=series_id, _api=key)
 
         vl = self.fred_logic.validate(data, type='obs')
 
         if vl is True:
-            transformed_data = self.fred_logic.transform(data, type='obs')
+            transformed_data = self.fred_logic.transform(data,series_id=id , type='obs')
 
             if export is True:
                 self.fred_logic.export(transformed_data, filetype=filetype)
