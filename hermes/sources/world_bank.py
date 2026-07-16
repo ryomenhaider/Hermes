@@ -144,7 +144,12 @@ class WBLogic:
         path = f'data/{ts}.{filetype}'
 
         if filetype == 'json':
-            data.reset_index().to_json(path, orient='records', date_format='iso', engine='fallback')
+            import json
+            # Convert to plain Python records to bypass ujson's strict recursion limits
+            records = data.reset_index().to_dict(orient='records')
+            with open(path, 'w', encoding='utf-8') as f:
+                # default=str handles datetime/Timestamp fields gracefully if they aren't fully localized
+                json.dump(records, f, default=str)
         elif filetype == 'csv':
             data.to_csv(path, date_format='iso')
         elif filetype == 'parquet':
@@ -156,6 +161,7 @@ class WBLogic:
 
         logger.info(f'Exported to {path}')
         return path
+
 
     def fetch_metadata(self, indicator_code: str) -> dict:
         url = f'{WB_BASE}/indicator/{indicator_code}?format=json'
