@@ -3,3 +3,4 @@ __pycache__
 .venv
 scripts/
 bigger_architect.md
+canonical_schemas.md
