@@ -215,7 +215,6 @@ class Fred:
         api: str = None,
         export: bool | None = None,
         filetype: str | None = None,
-        normalize: bool = True,
     ):
         key = api or self._api
         if not key:
