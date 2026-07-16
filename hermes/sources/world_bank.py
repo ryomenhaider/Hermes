@@ -144,7 +144,7 @@ class WBLogic:
         path = f'data/{ts}.{filetype}'
 
         if filetype == 'json':
-            data.reset_index().to_json(path, orient='records', date_format='iso')
+            data.reset_index().to_json(path, orient='records', date_format='iso', engine='fallback')
         elif filetype == 'csv':
             data.to_csv(path, date_format='iso')
         elif filetype == 'parquet':
