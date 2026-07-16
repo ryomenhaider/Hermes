@@ -10,5 +10,6 @@
             "database": "hermes",
             "username": "postgres"
         }
-    ]
+    ],
+    "r.lsp.promptToInstall": false
 }
