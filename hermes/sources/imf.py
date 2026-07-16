@@ -6,18 +6,6 @@ import time
 base_url = 'https://api.imf.org/external/sdmx/3.0'
 class IMFLogic:
 
-    def fetch_imf(
-        self,
-        agency: str,
-        dataflow_id: str,
-        key: str,
-        version = '~',
-    ):
-        url = f'{base_url}/data/dataflow/{agency}/{dataflow_id}/{version}/{key}'
-        r = httpx.get(url, headers={"Accept": "application/json"})
-        return r.json()
-
-
     def find_key_structure(self, dataflow: str, agency: str = "IMF.STA") -> dict:
         url = f"{base_url}/structure/dataflow/{agency}/{dataflow}/~"
         r = httpx.get(
@@ -98,6 +86,19 @@ class IMFLogic:
             print()
 
         return structure
+    
+    def fetch_imf(
+        self,
+        agency: str,
+        dataflow_id: str,
+        key: str,
+        version = '~',
+    ):
+        url = f'{base_url}/data/dataflow/{agency}/{dataflow_id}/{version}/{key}'
+        r = httpx.get(url, headers={"Accept": "application/json"})
+        return r.json()
+
+
 
 
 if __name__ == "__main__":
