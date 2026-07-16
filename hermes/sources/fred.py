@@ -211,6 +211,7 @@ class Fred:
         api: str = None,
         export: bool | None = None,
         filetype: str | None = None,
+        normalize: bool = True,
     ):
         key = api or self._api
         if not key:
@@ -231,12 +232,19 @@ class Fred:
 
         raise RuntimeError('The Data is not valid for application')
 
+    def _get_metadata(self, series_id: str, key: str) -> dict | None:
+        try:
+            return self.fred_logic.fetch_metadata(series_id, _api=key)
+        except Exception:
+            return None
+
     def get_series_metadata(
         self,
         series_id: str,
         api: str = None,
         export: bool | None = None,
         filetype: str | None = None,
+        normalize: bool = True,
     ) -> pd.DataFrame:
         key = api or self._api
         if not key:
@@ -276,6 +284,7 @@ class Fred:
         api: str = None,
         export: bool | None = None,
         filetype: str | None = None,
+        normalize: bool = True,
     ) -> pd.DataFrame:
         key = api or self._api
         if not key:
@@ -288,7 +297,7 @@ class Fred:
             vl = self.fred_logic.validate(raw, type='obs')
             if vl is True:
                 df = self.fred_logic.transform(raw, type='obs')
-                frames[sid] = df['value']
+                frames[sid] = df[['date', 'value']].set_index('date')['value'] if normalize else df['value']
 
         result = pd.concat(frames, axis=1)
         result.columns.name = 'series_id'
