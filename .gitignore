@@ -2,5 +2,5 @@ __pycache__
 .env
 .venv
 scripts/
-bigger_architect.md
-canonical_schemas.md
+res/
+test/
