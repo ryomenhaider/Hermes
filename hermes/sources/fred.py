@@ -161,7 +161,7 @@ class FredLogic:
             raise TypeError("data must be a pandas DataFrame")
 
         ts = time.time()
-        path = f'data/{ts}.{filetype}'
+        path = f'data/fred{ts}.{filetype}'
 
         if filetype == 'json':
             data.reset_index().to_json(path, orient='records', date_format='iso')

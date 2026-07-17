@@ -80,7 +80,7 @@ class IMFLogic:
             raise TypeError("data must be a pandas DataFrame")
 
         ts = time.time()
-        path = f'data/{ts}.{filetype}'
+        path = f'data/IMF{ts}.{filetype}'
 
         if filetype == 'json':
             records = data.reset_index().to_dict(orient='records')
