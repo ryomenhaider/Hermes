@@ -31,19 +31,21 @@ class IMFLogic:
     ) -> pd.DataFrame :
 
         struct = data["data"]["structures"][0]
-        dims = {d["id"]: d for d in struct["dimensions"]["series"]}
+        series_dims = sorted(struct["dimensions"]["series"], key=lambda d: d["keyPosition"])
         tps = struct["dimensions"]["observation"][0]["values"]
 
-        country = dims["COUNTRY"]["values"][0]["id"]
-        indicator = f'{dims["INDEX_TYPE"]["values"][0]["id"]}.{dims["COICOP_1999"]["values"][0]["id"]}'
-
         rows = []
-        for sv in data["data"]["dataSets"][0]["series"].items():
+        for sk, sv in data["data"]["dataSets"][0]["series"].items():
+            idxs = sk.split(":")
+            dim_vals = {}
+            for i, d in enumerate(series_dims):
+                dim_vals[d["id"]] = d["values"][int(idxs[i])]["id"] if d["values"] else idxs[i]
+
             for ok, ov in sv["observations"].items():
                 rows.append({
                     "date": tps[int(ok)]["value"],
-                    "country_iso3": country,
-                    "indicator_id": indicator,
+                    "country_iso3": dim_vals.get("COUNTRY", ""),
+                    "indicator_id": f'{dim_vals.get("INDEX_TYPE", "")}.{dim_vals.get("COICOP_1999", "")}',
                     "value": float(ov[0]),
                     "source": "IMF",
                 })
