@@ -146,7 +146,7 @@ class WBLogic:
             raise TypeError("data must be a pandas DataFrame")
 
         ts = time.time()
-        path = f'data/{ts}.{filetype}'
+        path = f'data/world_bank{ts}.{filetype}'
 
         if filetype == 'json':
             import json

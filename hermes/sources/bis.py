@@ -166,7 +166,7 @@ class BISLogic:
             raise TypeError("data must be a pandas DataFrame")
 
         ts = time.time()
-        path = f'data/{ts}.{filetype}'
+        path = f'data/bis{ts}.{filetype}'
 
         if filetype == 'json':
             records = data.reset_index().to_dict(orient='records')
