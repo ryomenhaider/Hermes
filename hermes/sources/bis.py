@@ -284,6 +284,7 @@ class BISLogic:
 class BIS:
     def __init__(self):
         self._logic = BISLogic()
+        self._cache = None
 
     def get_flows(self) -> pd.DataFrame:
         return pd.DataFrame([{"id": f, "name": FLOW_NAMES.get(f, "")} for f in FLOWS])

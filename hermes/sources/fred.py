@@ -200,9 +200,10 @@ COMMON_SERIES = {
 
 class Fred:
 
-    def __init__(self):
+    def __init__(self, cache=None):
         self.fred_logic = FredLogic()
         self._api = None
+        self._cache = cache
 
     def connect(self, api_key: str) -> str:
         self._api = api_key
@@ -234,6 +235,22 @@ class Fred:
             return transformed_data
 
         raise RuntimeError('The Data is not valid for application')
+
+    def cached_get_series(
+        self,
+        series_id: str,
+        api: str = None,
+        ttl: int = 3600,
+        **kwargs,
+    ):
+        if self._cache is None:
+            return self.get_series(series_id, api=api, **kwargs)
+        cached = self._cache.get("fred", "get_series", series_id, api, **kwargs)
+        if cached is not None:
+            return cached
+        result = self.get_series(series_id, api=api, **kwargs)
+        self._cache.set("fred", "get_series", result, ttl, series_id, api, **kwargs)
+        return result
 
     def _get_metadata(self, series_id: str, key: str) -> dict | None:
         try:

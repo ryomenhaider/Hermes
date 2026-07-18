@@ -201,6 +201,7 @@ class World_Bank:
 
     def __init__(self):
         self.wb = WBLogic()
+        self._cache = None
     
     def get_indicators(self):
         url = f"{WB_BASE}/indicator?format=json&per_page=10000"
