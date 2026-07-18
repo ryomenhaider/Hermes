@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import httpx
 import pandas as pd
 import pycountry
@@ -6,6 +8,8 @@ import json
 import time
 from io import StringIO
 from typing import Any, Optional, Literal
+
+from hermes.base import BaseConnector
 
 logger = logging.getLogger(__name__)
 
@@ -92,25 +96,25 @@ def _build_key(flow: str, filters: dict[str, str] | None = None) -> str:
 
 def _transform_csv(df: pd.DataFrame, flow: str) -> pd.DataFrame:
     if df.empty:
-        return pd.DataFrame(columns=["date", "country_iso3", "indicator_id", "value", "source"])
+        return pd.DataFrame(columns=["date", "country", "indicator", "value", "source"])
 
     dim_cols = [c for c in df.columns if c not in OBS_COLS and c not in TEXT_COLS]
     ind_cols = [c for c in dim_cols if c not in SERIES_EXCLUDE]
 
-    df["indicator_id"] = flow + "." + df[ind_cols].apply(
+    df["indicator"] = flow + "." + df[ind_cols].apply(
         lambda r: ".".join(str(v) if pd.notna(v) else "" for v in r), axis=1
     )
 
-    df["country_iso3"] = df.get("REF_AREA", pd.Series("", index=df.index)).apply(
+    df["country"] = df.get("REF_AREA", pd.Series("", index=df.index)).apply(
         lambda x: _alpha3(str(x).strip()) if pd.notna(x) else ""
     )
     df["date"] = pd.to_datetime(df["TIME_PERIOD"], format="mixed", errors="coerce")
     df["value"] = pd.to_numeric(df["OBS_VALUE"], errors="coerce")
     df["source"] = "BIS"
 
-    result = df[["date", "country_iso3", "indicator_id", "value", "source"]].copy()
+    result = df[["date", "country", "indicator", "value", "source"]].copy()
     result = result.dropna(subset=["value"])
-    return result.sort_values(["country_iso3", "date"]).reset_index(drop=True)
+    return result.sort_values(["country", "date"]).reset_index(drop=True)
 
 
 def _parse_sdmx_json(data: dict, flow: str) -> pd.DataFrame:
@@ -131,8 +135,8 @@ def _parse_sdmx_json(data: dict, flow: str) -> pd.DataFrame:
                     idx = int(ok)
                     rows.append({
                         "date": pd.to_datetime(obs_vals[idx]["id"], errors="coerce") if idx < len(obs_vals) else pd.NaT,
-                        "country_iso3": cty,
-                        "indicator_id": ind,
+                        "country": cty,
+                        "indicator": ind,
                         "value": float(ov[0]),
                         "source": "BIS",
                     })
@@ -140,8 +144,8 @@ def _parse_sdmx_json(data: dict, flow: str) -> pd.DataFrame:
         logger.error("JSON parse error: %s", e)
 
     if not rows:
-        return pd.DataFrame(columns=["date", "country_iso3", "indicator_id", "value", "source"])
-    return pd.DataFrame(rows).sort_values(["country_iso3", "date"]).reset_index(drop=True)
+        return pd.DataFrame(columns=["date", "country", "indicator", "value", "source"])
+    return pd.DataFrame(rows).sort_values(["country", "date"]).reset_index(drop=True)
 
 
 class BISLogic:
@@ -225,16 +229,16 @@ class BISLogic:
                     if v is not None: ov = v.get("value", "")
                     rows.append({
                         "date": pd.to_datetime(tp, errors="coerce"),
-                        "country_iso3": cty,
-                        "indicator_id": ind,
+                        "country": cty,
+                        "indicator": ind,
                         "value": pd.to_numeric(ov, errors="coerce"),
                         "source": "BIS",
                     })
         except Exception as e:
             logger.error("XML parse error: %s", e)
         if not rows:
-            return pd.DataFrame(columns=["date", "country_iso3", "indicator_id", "value", "source"])
-        return pd.DataFrame(rows).dropna(subset=["value"]).sort_values(["country_iso3", "date"]).reset_index(drop=True)
+            return pd.DataFrame(columns=["date", "country", "indicator", "value", "source"])
+        return pd.DataFrame(rows).dropna(subset=["value"]).sort_values(["country", "date"]).reset_index(drop=True)
 
     @staticmethod
     def validate(df: pd.DataFrame) -> dict:
@@ -242,7 +246,7 @@ class BISLogic:
         if not isinstance(df, pd.DataFrame):
             return {"valid": False, "errors": ["Not a DataFrame"], "warnings": [], "stats": {}}
         report["stats"] = {"rows": len(df), "columns": list(df.columns)}
-        req = {"date", "country_iso3", "indicator_id", "value", "source"}
+        req = {"date", "country", "indicator", "value", "source"}
         missing = req - set(df.columns)
         if missing:
             report["valid"] = False
@@ -281,10 +285,33 @@ class BISLogic:
         return path
 
 
-class BIS:
-    def __init__(self):
+class BIS(BaseConnector):
+    def __init__(self, api_key: str | None = None):
+        super().__init__()
         self._logic = BISLogic()
         self._cache = None
+
+    @property
+    def name(self) -> str:
+        return "bis"
+
+    def fetch(
+        self,
+        country: str | None = None,
+        indicator: str | None = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        if indicator:
+            flow = indicator.split(".")[0] if "." in indicator else indicator
+        else:
+            flow = "WS_TC"
+        try:
+            df = self.get_data(flow=flow, **kwargs)
+        except Exception:
+            return pd.DataFrame(columns=["date", "country", "indicator", "value", "source"])
+        if country:
+            df = df[df["country"] == country.upper()].copy()
+        return df[["date", "country", "indicator", "value", "source"]]
 
     def get_flows(self) -> pd.DataFrame:
         return pd.DataFrame([{"id": f, "name": FLOW_NAMES.get(f, "")} for f in FLOWS])

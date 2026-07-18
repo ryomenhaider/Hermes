@@ -1,1 +1,9 @@
-
+from hermes.sources.fred import Fred
+from hermes.sources.bis import BIS
+from hermes.sources.imf import IMF
+from hermes.sources.world_bank import World_Bank
+from hermes.sources.gdelt import GDELT
+from hermes.sources.ucdp import UCDP
+from hermes.sources.newsapi import NewsAPI
+from hermes.sources.v_dem import VDem
+from hermes.sources.comtrade import Comtrade

@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import httpx
-from typing import Literal
+from typing import Any, Literal
 import pandas as pd
 import logging
 import time
 import os
 from dotenv import load_dotenv
+
+from hermes.base import BaseConnector
 
 load_dotenv()
 
@@ -137,8 +141,8 @@ class FredLogic:
                 pd.DataFrame(data['observations'])
                 .assign(
                     date           = lambda x: pd.to_datetime(x['date']),
-                    country_iso3   = 'USA',
-                    indicator_id   = series_id,
+                    country        = 'USA',
+                    indicator      = series_id,
                     value          = lambda x: pd.to_numeric(x['value'], errors='coerce'),
                     source         = 'FRED'
                 )
@@ -198,17 +202,38 @@ COMMON_SERIES = {
 }
 
 
-class Fred:
+class Fred(BaseConnector):
 
-    def __init__(self, cache=None):
+    def __init__(self, api_key: str | None = None, cache=None):
+        super().__init__()
         self.fred_logic = FredLogic()
-        self._api = None
+        self._api = api_key or os.getenv('FRED_API')
         self._cache = cache
+
+    @property
+    def name(self) -> str:
+        return "fred"
 
     def connect(self, api_key: str) -> str:
         self._api = api_key
         logger.info('FRED API key stored')
         return self._api
+
+    def fetch(
+        self,
+        country: str = "USA",
+        indicator: str = "GDPC1",
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            df = self.get_series(series_id=indicator, **kwargs)
+        except Exception:
+            return pd.DataFrame(columns=["date", "country", "indicator", "value", "source"])
+        if df.empty:
+            return df
+        df = df.reset_index()
+        df["country"] = country.upper()
+        return df[["date", "country", "indicator", "value", "source"]]
 
     def get_series(
         self,
@@ -245,11 +270,17 @@ class Fred:
     ):
         if self._cache is None:
             return self.get_series(series_id, api=api, **kwargs)
-        cached = self._cache.get("fred", "get_series", series_id, api, **kwargs)
-        if cached is not None:
-            return cached
+        try:
+            cached = self._cache.get("fred", "get_series", series_id, api, **kwargs)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass
         result = self.get_series(series_id, api=api, **kwargs)
-        self._cache.set("fred", "get_series", result, ttl, series_id, api, **kwargs)
+        try:
+            self._cache.set(result, ttl, "fred", "get_series", series_id, api, **kwargs)
+        except Exception:
+            pass
         return result
 
     def _get_metadata(self, series_id: str, key: str) -> dict | None:

@@ -1,7 +1,13 @@
+from __future__ import annotations
+
 import httpx
 import pandas as pd
 import logging
 import json, time
+from typing import Any
+
+from hermes.base import BaseConnector
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,8 +56,8 @@ class IMFLogic:
             df.append(
                 {
                     "date": date,
-                    "country_iso3": country,
-                    "indicator_id": indicator,
+                    "country": country,
+                    "indicator": indicator,
                     "value": value,
                     "source": 'IMF'
                 }
@@ -101,11 +107,29 @@ class IMFLogic:
 
         logger.info(f'Exported to {path}')
         return path
-class IMF:
+class IMF(BaseConnector):
 
-    def __init__(self):
+    def __init__(self, api_key: str | None = None):
+        super().__init__()
         self.imf = IMFLogic()
         self._cache = None
+
+    @property
+    def name(self) -> str:
+        return "imf"
+
+    def fetch(
+        self,
+        country: str = "USA",
+        indicator: str = "NGDPD",
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            df = self.get_data(indicator=indicator, country=country, **kwargs)
+        except Exception:
+            return pd.DataFrame(columns=["date", "country", "indicator", "value", "source"])
+        df = df.reset_index()
+        return df[["date", "country", "indicator", "value", "source"]]
     
     def get_indicators(self) -> list[str, dict]:
         

@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from typing import date
+
 
 @dataclass
-class indicator:
-    date = 'datetime64[ns]'
-    country_iso3: str
-    indicator_id: str
-    value:  float
-    source: str
-
+class IndicatorRecord:
+    date: str = "datetime64[ns]"
+    country: str = ""
+    indicator: str = ""
+    value: float = 0.0
+    source: str = ""

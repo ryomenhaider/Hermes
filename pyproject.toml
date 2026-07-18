@@ -1,6 +1,6 @@
 [project]
 name = "hermes-plt"
-version = "0.1.19"
+version = "0.2.0"
 description = "Foundational intelligence data platform for acquiring, validating, normalizing, storing, and serving intelligence datasets"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,6 +19,7 @@ classifiers = [
 ]
 dependencies = [
     "asyncpg>=0.31.0",
+    "fastparquet>=2026.5.0",
     "httpx>=0.28.1",
     "pandas>=3.0.3",
     "psycopg>=3.3.4",
