@@ -105,6 +105,7 @@ class IMF:
 
     def __init__(self):
         self.imf = IMFLogic()
+        self._cache = None
     
     def get_indicators(self) -> list[str, dict]:
         
