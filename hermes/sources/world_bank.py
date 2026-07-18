@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 import httpx
 import pandas as pd
 import pycountry
 import re
 import time
 import logging
+from typing import Any
+
+from hermes.base import BaseConnector
 
 logger = logging.getLogger(__name__)
 
@@ -112,15 +117,15 @@ class WBLogic:
     def transform(self, data: list[dict]) -> pd.DataFrame:
         if not data:
             return pd.DataFrame(
-                columns=["date", "country_iso3", "indicator_id", "value", "source"]
+                columns=["date", "country", "indicator", "value", "source"]
             )
 
         df = pd.json_normalize(data)
 
         df = df.rename(
             columns={
-                "countryiso3code": "country_iso3",
-                "indicator.id": "indicator_id",
+                "countryiso3code": "country",
+                "indicator.id": "indicator",
             }
         )
 
@@ -128,16 +133,16 @@ class WBLogic:
             df
             .assign(
                 date         = lambda x: pd.to_datetime(x["date"].str[:4]),
-                indicator_id = lambda x: x["indicator_id"].astype(str),
+                indicator    = lambda x: x["indicator"].astype(str),
                 value        = lambda x: pd.to_numeric(x["value"], errors="coerce"),
                 source       = "World Bank",
             )
-            [["date", "country_iso3", "indicator_id", "value", "source"]]
+            [["date", "country", "indicator", "value", "source"]]
         )
 
         df = df.dropna(subset=["value"])
 
-        df = df.sort_values(["country_iso3", "date"]).reset_index(drop=True)
+        df = df.sort_values(["country", "date"]).reset_index(drop=True)
 
         return df
 
@@ -197,11 +202,28 @@ class WBLogic:
         return data[1] if isinstance(data, list) and len(data) > 1 else []
 
 
-class World_Bank:
+class World_Bank(BaseConnector):
 
-    def __init__(self):
+    def __init__(self, api_key: str | None = None):
+        super().__init__()
         self.wb = WBLogic()
         self._cache = None
+
+    @property
+    def name(self) -> str:
+        return "world_bank"
+
+    def fetch(
+        self,
+        country: str = "USA",
+        indicator: str = "NY.GDP.MKTP.CD",
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        try:
+            df = self.get_data(indicator=indicator, country=country, **kwargs)
+        except Exception:
+            return pd.DataFrame(columns=["date", "country", "indicator", "value", "source"])
+        return df[["date", "country", "indicator", "value", "source"]]
     
     def get_indicators(self):
         url = f"{WB_BASE}/indicator?format=json&per_page=10000"
@@ -316,7 +338,7 @@ class World_Bank:
             vl = self.wb.validate_worldbank(data=raw)
             if vl:
                 df = self.wb.transform(data=raw)
-                frames[code] = df.set_index(['country', 'date'])['value']
+                frames[code] = df.set_index(['country', 'date']).squeeze() if 'value' in df.columns else pd.Series(dtype=float)
 
         result = pd.concat(frames, axis=1)
         result.columns.name = 'indicator'
