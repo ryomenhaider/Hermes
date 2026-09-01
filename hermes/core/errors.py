@@ -40,3 +40,8 @@ class ConnectorNotFoundError(HermesError):
 
 class AuthenticationError(HermesError):
     """Missing or invalid credentials."""
+    
+class FetchingError(HermesError):
+    ""
+
+
