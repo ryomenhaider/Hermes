@@ -1,0 +1,76 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly scan every Monday at 03:00 UTC
+    - cron: '0 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  bandit:
+    name: Bandit (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Bandit
+        run: pip install "bandit[toml]"
+
+      - name: Run Bandit
+        run: |
+          bandit -r hermes/ \
+            -f json \
+            -o bandit-report.json \
+            -ll   # only report Medium and higher severity
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 14
+
+  pip-audit:
+    name: pip-audit (Dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install project + pip-audit
+        run: |
+          pip install -e .
+          pip install pip-audit
+
+      - name: Run pip-audit
+        run: |
+          # Generate JSON report (always)
+          pip-audit --format json --output pip-audit-report.json || true
+          # Fail the job if vulnerabilities are found
+          pip-audit
+
+      - name: Upload pip-audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+          retention-days: 14
