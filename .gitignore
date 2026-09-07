@@ -1,11 +1,14 @@
-data
-.venv/
-__pycache__/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-dist/
-res/
-**/.cache/
-**/.next/
-**/home/
+ data
++.env
++.env.*
++!.env.example
+ .venv/
+ __pycache__/
+ .pytest_cache/
+ .mypy_cache/
+ .ruff_cache/
+ dist/
+ res/
+ **/.cache/
+ **/.next/
+ **/home/
