@@ -17,6 +17,7 @@
 /.next/
 /out/
 /home/
+/mnt
 # production
 /build
 
