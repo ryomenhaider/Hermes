@@ -3,7 +3,6 @@ import logging
 from datetime import timedelta
 from functools import partial
 
-import pandas as pd
 import polars as pl
 import yfinance as yf
 

@@ -13,10 +13,13 @@ class Dataset(BaseModel):
     name: str
     version: str = "0.0.1"
 
+    data_ref: str 
     schema_ref: str | None = None
+    
     metadata: MetaData = Field(default_factory=MetaData)
     provenance: Provenance = Field(default_factory=Provenance)
     lineage: Lineage = Field(default_factory=Lineage)
+
     data_version: DataVersion | None = None
 
     def provenance_info(self) -> Provenance:
