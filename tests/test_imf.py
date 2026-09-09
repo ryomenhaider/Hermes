@@ -90,10 +90,10 @@ class TestIMF:
 
         with patch("hermes.connectors.imf.connector.aiohttp.ClientSession", return_value=mock_session):
             df = await imf._fetch("USA", "IMF.STA", "PPI", "PPI.IX.A")
-            assert not df.empty
-            assert df["value"].iloc[0] == 110.5
-            assert df["country"].iloc[0] == "USA"
-            assert df["source"].iloc[0] == "IMF"
+            assert not df.is_empty()
+            assert df["value"].item(0) == 110.5
+            assert df["country"].item(0) == "USA"
+            assert df["source"].item(0) == "IMF"
 
     async def test_fetch_no_series(self):
         imf = IMF(cache=None)
@@ -115,7 +115,7 @@ class TestIMF:
 
         with patch("hermes.connectors.imf.connector.aiohttp.ClientSession", return_value=mock_session):
             df = await imf._fetch("USA", "IMF.STA", "PPI", "PPI.IX.A")
-            assert df.empty
+            assert df.is_empty()
 
     async def test_fetch_404(self):
         imf = IMF(cache=None)
@@ -124,7 +124,7 @@ class TestIMF:
 
         with patch("hermes.connectors.imf.connector.aiohttp.ClientSession", return_value=mock_session):
             df = await imf._fetch("USA", "IMF.STA", "BAD", "X")
-            assert df.empty
+            assert df.is_empty()
 
     async def test_fetch_http_error(self):
         imf = IMF(cache=None)

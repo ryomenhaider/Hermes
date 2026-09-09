@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from functools import partial
 
 import aiohttp
-import pandas as pd
+import polars as pl
 
 from hermes.acquisition.cache import RawCache
 from hermes.connectors.finnhub.mappings import BASE_URL, ENDPOINTS, FinnhubEndpoint
@@ -137,7 +137,7 @@ class FINNHUB:
         symbol: str,
         resolution: str = "D",
         years: int = 2,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         max_days = FINNHUB_MAX_DAYS.get(resolution, 365)
         now = int(datetime.now(UTC).timestamp())
         start = now - (years * 365 * 86_400)

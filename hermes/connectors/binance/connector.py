@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from functools import partial
 
 import aiohttp
-import pandas as pd
+import polars as pl
 
 from hermes.acquisition.cache import RawCache
 from hermes.connectors.binance.mappings import BINANCE_ENDPOINTS
@@ -150,7 +150,7 @@ class Binance:
         market: str = "future",
         years: int = 2,
         max_concurrent: int = 10,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         interval_ms = BINANCE_INTERVAL_MS.get(interval)
         if interval_ms is None:
             raise ValueError(f"Unsupported interval: {interval!r}")

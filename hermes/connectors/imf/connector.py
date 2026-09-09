@@ -4,12 +4,11 @@ from datetime import timedelta
 from functools import partial
 
 import aiohttp
-import pandas as pd
+import polars as pl
 
 from hermes.acquisition.cache import RawCache
 from hermes.connectors.imf.mappings import IMF_BASE_URL
-from hermes.connectors.imf.normalizer import normalize_sdmx
-from hermes.connectors.imf.parser import empty_dataframe
+from hermes.connectors.imf.parser import empty_dataframe, parse_sdmx_json
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class IMF:
         version: str = "~",
         timeout: float = 30.0,
         retries: int = 3,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         url = f"{self.url}{agency}/{dataflow_id}/{version}/{country}.{key}"
         headers = {"Accept": "application/json"}
 
@@ -52,10 +51,10 @@ class IMF:
                         return empty
                     logger.error(f"HTTP error: {e.status}")
                     raise
-        return r["data"]
+        return parse_sdmx_json(r["data"], country=country, key=key)
 
     async def normalize(self, data):
-        return normalize_sdmx(data)
+        return data
 
     async def fetch(
         self,
@@ -66,7 +65,7 @@ class IMF:
         timeout: float = 30.0,
         retries: int = 3,
         force: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         cache_params = {
             "country": country,
             "key": key,

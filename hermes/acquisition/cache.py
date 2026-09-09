@@ -5,7 +5,8 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
+import pyarrow.parquet as pq
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class RawCache:
         h = hashlib.sha256(raw.encode()).hexdigest()[:16]
         return self._source_dir(source) / f"{h}.parquet"
 
-    def get(self, source: str, params: dict, ttl: timedelta | None = None) -> pd.DataFrame:
+    def get(self, source: str, params: dict, ttl: timedelta | None = None) -> pl.DataFrame:
         path = self._key_path(source, params)
         if not path.exists():
             self._misses[source] = self._misses.get(source, 0) + 1
@@ -53,7 +54,7 @@ class RawCache:
             raise CacheMiss(f"Cache expired for {source}:{params} (age={age})")
 
         try:
-            df = pd.read_parquet(path)
+            df = pl.read_parquet(path)
         except Exception as e:
             logger.warning(f"Corrupted cache file {path}: {e}")
             path.unlink(missing_ok=True)
@@ -64,28 +65,28 @@ class RawCache:
         logger.debug(f"Cache HIT for {source}:{params}")
         return df
 
-    def put(self, source: str, params: dict, df: pd.DataFrame):
+    def put(self, source: str, params: dict, df: pl.DataFrame):
         path = self._key_path(source, params)
-        df.to_parquet(path, index=False)
+        df.write_parquet(path)
         meta = {
             "source": source,
             "params": params,
             "cached_at": datetime.now().isoformat(),
-            "rows": len(df),
-            "columns": list(df.columns),
+            "rows": df.height,
+            "columns": df.columns,
         }
         meta_path = path.with_suffix(".meta.json")
         meta_path.write_text(json.dumps(meta, indent=2, default=str))
-        logger.debug(f"Cached {len(df)} rows for {source}:{params}")
+        logger.debug(f"Cached {df.height} rows for {source}:{params}")
 
     async def get_or_fetch(
         self,
         source: str,
         params: dict,
-        fetch_fn: Callable[[], Awaitable[pd.DataFrame]],
+        fetch_fn: Callable[[], Awaitable[pl.DataFrame]],
         force: bool = False,
         ttl: timedelta | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if not force:
             try:
                 return self.get(source, params, ttl=ttl)
@@ -93,7 +94,7 @@ class RawCache:
                 pass
 
         df = await fetch_fn()
-        if isinstance(df, pd.DataFrame) and not df.empty:
+        if isinstance(df, pl.DataFrame) and not df.is_empty():
             self.put(source, params, df)
         return df
 

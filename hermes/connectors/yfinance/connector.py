@@ -4,6 +4,7 @@ from datetime import timedelta
 from functools import partial
 
 import pandas as pd
+import polars as pl
 import yfinance as yf
 
 from hermes.acquisition.cache import RawCache
@@ -70,7 +71,7 @@ class Yfinance:
         symbol: str,
         interval: str = "1d",
         years: int = 2,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         yf_interval = YFINANCE_INTERVAL_MAP.get(interval)
         if yf_interval is None:
             raise ValueError(

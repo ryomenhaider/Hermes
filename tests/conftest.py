@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from hermes.acquisition.cache import RawCache
@@ -14,8 +14,8 @@ def tmp_cache(tmp_path: Path) -> RawCache:
 
 
 @pytest.fixture
-def sample_wb_df() -> pd.DataFrame:
-    return pd.DataFrame(
+def sample_wb_df() -> pl.DataFrame:
+    return pl.DataFrame(
         {
             "date": ["2023", "2022", "2021"],
             "indicator_id": ["NY.GDP.MKTP.KD.ZG"] * 3,
@@ -28,8 +28,8 @@ def sample_wb_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def sample_wb_cpi_df() -> pd.DataFrame:
-    return pd.DataFrame(
+def sample_wb_cpi_df() -> pl.DataFrame:
+    return pl.DataFrame(
         {
             "date": ["2023", "2022", "2021"],
             "indicator_id": ["FP.CPI.TOTL"] * 3,
@@ -42,8 +42,8 @@ def sample_wb_cpi_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def sample_imf_df() -> pd.DataFrame:
-    return pd.DataFrame(
+def sample_imf_df() -> pl.DataFrame:
+    return pl.DataFrame(
         {
             "date": ["2023", "2022", "2021"],
             "indicator_id": ["PPI.IX.A"] * 3,
@@ -56,8 +56,8 @@ def sample_imf_df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def sample_fred_df() -> pd.DataFrame:
-    return pd.DataFrame(
+def sample_fred_df() -> pl.DataFrame:
+    return pl.DataFrame(
         {
             "date": ["2023-10-01", "2023-07-01", "2023-04-01"],
             "value": ["27360.863", "27061.152", "26891.259"],

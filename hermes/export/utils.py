@@ -2,15 +2,15 @@ import logging
 import time
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
 
-def export(data: pd.DataFrame | pd.Series, filetype: str = "csv", loc: Path | str = "data/", name: str | None = None):
+def export(data: pl.DataFrame, filetype: str = "csv", loc: Path | str = "data/", name: str | None = None):
 
-    if not isinstance(data, (pd.DataFrame, pd.Series)):
-        raise TypeError(f"The data should be pandas DataFrame or Series, got {type(data)}")
+    if not isinstance(data, pl.DataFrame):
+        raise TypeError(f"The data should be a polars DataFrame, got {type(data)}")
 
     filetype = filetype.lower()
     if not name:
@@ -23,11 +23,11 @@ def export(data: pd.DataFrame | pd.Series, filetype: str = "csv", loc: Path | st
     full_path = target_dir / file_name
     try:
         if filetype == "csv":
-            data.to_csv(full_path, index=False)
+            data.write_csv(full_path)
         elif filetype == "json":
-            data.to_json(full_path)
+            data.write_json(full_path, row_oriented=True)
         elif filetype == "parquet":
-            data.to_parquet(full_path)
+            data.write_parquet(full_path)
         else:
             logger.error(f"The function only supports csv, json, or parquet. Got: {filetype}")
             return
@@ -46,6 +46,6 @@ if __name__ == "__main__":
         "Salary": [70000, 85000, 95000, 80000],
     }
 
-    df = pd.DataFrame(data)
+    df = pl.DataFrame(data)
 
     export(data=df, filetype="csv", name="demo")

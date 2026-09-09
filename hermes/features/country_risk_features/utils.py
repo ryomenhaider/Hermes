@@ -1,20 +1,20 @@
 import logging
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
 
 def check_empty(mode, data, country="unknown"):
-    if data.empty:
+    if isinstance(data, pl.DataFrame) and data.is_empty():
         logger.warning(f"No Data for {country}")
         return empty_result(mode)
 
-    if "value" in data.columns:
-        data = data[data["value"].notna()]
+    if isinstance(data, pl.DataFrame) and "value" in data.columns:
+        data = data.filter(pl.col("value").is_not_null())
 
-    if data.empty:
+    if isinstance(data, pl.DataFrame) and data.is_empty():
         logger.warning(f"No valid data for {country}")
         return empty_result(mode)
 
@@ -22,24 +22,36 @@ def check_empty(mode, data, country="unknown"):
 
 
 def empty_result(mode: str):
-    return np.nan if mode == "F" else pd.Series(dtype=float)
+    return np.nan if mode == "F" else pl.Series(dtype=pl.Float64)
 
 
 def adjust_year_range(df, year_col, start_year, end_year, fill_method="null", fill_value=0):
-    full_years = pd.DataFrame({year_col: range(start_year, end_year + 1)})
+    full_years = pl.DataFrame({year_col: range(start_year, end_year + 1)})
 
-    df_filtered = df[(df[year_col] >= start_year) & (df[year_col] <= end_year)]
+    df_filtered = df.filter(
+        (pl.col(year_col) >= start_year) & (pl.col(year_col) <= end_year)
+    )
 
-    adjusted_df = pd.merge(full_years, df_filtered, on=year_col, how="left")
+    adjusted_df = full_years.join(df_filtered, on=year_col, how="left")
+
+    value_cols = [c for c in adjusted_df.columns if c != year_col]
 
     if fill_method == "value":
-        adjusted_df = adjusted_df.fillna(fill_value)
+        adjusted_df = adjusted_df.with_columns(
+            [pl.col(c).fill_null(fill_value) for c in value_cols]
+        )
     elif fill_method == "ffill":
-        adjusted_df = adjusted_df.ffill().bfill()
+        adjusted_df = adjusted_df.with_columns(
+            [pl.col(c).forward_fill().backward_fill() for c in value_cols]
+        )
     elif fill_method == "bfill":
-        adjusted_df = adjusted_df.bfill().ffill()
+        adjusted_df = adjusted_df.with_columns(
+            [pl.col(c).backward_fill().forward_fill() for c in value_cols]
+        )
     elif fill_method == "linear":
-        adjusted_df = adjusted_df.interpolate(method="linear").bfill().ffill()
+        adjusted_df = adjusted_df.with_columns(
+            [pl.col(c).interpolate().backward_fill().forward_fill() for c in value_cols]
+        )
 
     return adjusted_df
 

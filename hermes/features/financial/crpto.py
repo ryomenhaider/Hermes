@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from hermes.connectors.binance import Binance
 from hermes.connectors.sec.tags import SEC_TAG_MAP
@@ -20,7 +20,7 @@ class CryptoHistory:
         market: str = "future",
         years: int = 2,
         max_concurrent: int = 10,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = await self.binance.fetch_history(
             symbol=symbol,
             interval=interval,
@@ -29,225 +29,305 @@ class CryptoHistory:
             max_concurrent=max_concurrent,
         )
 
-        if df.empty:
+        if df.is_empty():
             return df
 
-        df["symbol"] = symbol
-        df["interval"] = interval
+        df = df.with_columns(pl.lit(symbol).alias("symbol"), pl.lit(interval).alias("interval"))
 
         df = self._compute_features(df)
 
         return df
 
     @staticmethod
-    def _compute_features(df: pd.DataFrame) -> pd.DataFrame:
-        c = df["close"].values.astype(float)
-        o = df["open"].values.astype(float)
-        hi = df["high"].values.astype(float)
-        lo = df["low"].values.astype(float)
-        v = df["volume"].values.astype(float)
-        qv = df["quote_volume"].values.astype(float)
-        tbv = df["taker_buy_volume"].values.astype(float)
-        tc = df["trades_count"].values.astype(float)
-
-        cs = pd.Series(c)
-        hs = pd.Series(hi)
-        ls = pd.Series(lo)
-        vs = pd.Series(v)
+    def _compute_features(df: pl.DataFrame) -> pl.DataFrame:
+        c = df["close"].to_numpy().astype(float)
+        o = df["open"].to_numpy().astype(float)
+        hi = df["high"].to_numpy().astype(float)
+        lo = df["low"].to_numpy().astype(float)
+        v = df["volume"].to_numpy().astype(float)
+        qv = df["quote_volume"].to_numpy().astype(float)
+        tbv = df["taker_buy_volume"].to_numpy().astype(float)
+        tc = df["trades_count"].to_numpy().astype(float)
 
         log_ret = np.full(len(c), np.nan)
         log_ret[1:] = np.log(c[1:] / c[:-1])
-        log_ret_s = pd.Series(log_ret)
-
-        df["ret_1b"] = log_ret
-        df["ret_open_to_close"] = np.where(o > 0, c / o - 1, np.nan)
-        df["ret_3b"] = log_ret_s.shift(2).values
-        df["ret_5b"] = log_ret_s.shift(4).values
-        df["ret_10b"] = log_ret_s.shift(9).values
-        df["ret_20b"] = log_ret_s.shift(19).values
-        df["ret_60b"] = log_ret_s.shift(59).values
-
-        df["hl_range"] = np.where(c > 0, (hi - lo) / c, np.nan)
-        df["body_range"] = np.where(c > 0, np.abs(c - o) / c, np.nan)
-
-        sma20 = cs.rolling(20).mean()
-        sma50 = cs.rolling(50).mean()
-        sma200 = cs.rolling(200).mean()
-
-        df["dist_sma_20"] = np.where(sma20 > 0, (c - sma20) / sma20, np.nan)
-        df["dist_sma_50"] = np.where(sma50 > 0, (c - sma50) / sma50, np.nan)
-        df["dist_sma_200"] = np.where(sma200 > 0, (c - sma200) / sma200, np.nan)
-
-        ema9 = cs.ewm(span=9, adjust=False).mean()
-        ema21 = cs.ewm(span=21, adjust=False).mean()
-        ema50 = cs.ewm(span=50, adjust=False).mean()
-
-        df["ema_diff_9_21"] = np.where(ema21 > 0, (ema9 - ema21) / ema21, np.nan)
-        df["ema_diff_21_50"] = np.where(ema50 > 0, (ema21 - ema50) / ema50, np.nan)
-
-        vol_20 = log_ret_s.rolling(20).std(ddof=1)
-        vol_60 = log_ret_s.rolling(60).std(ddof=1)
-        df["vol_20"] = vol_20.values
-        df["vol_60"] = vol_60.values
 
         prev_c = np.roll(c, 1)
         prev_c[0] = np.nan
-        tr = np.maximum(
-            hi - lo,
-            np.maximum(np.abs(hi - prev_c), np.abs(lo - prev_c)),
-        )
+        tr = np.maximum(hi - lo, np.maximum(np.abs(hi - prev_c), np.abs(lo - prev_c)))
         tr[0] = np.nan
-        tr_s = pd.Series(tr)
-        atr14 = tr_s.rolling(14).mean()
-        df["atr_14_norm"] = np.where(c > 0, atr14.values / c, np.nan)
 
-        volume_sma_20 = vs.rolling(20).mean()
-        volume_sma_60 = vs.rolling(60).mean()
-        df["volume_sma_20"] = volume_sma_20.values
-        df["volume_rel_20"] = np.where(volume_sma_20 > 0, v / volume_sma_20, np.nan)
-        df["taker_buy_vol_ratio"] = np.where(v > 0, tbv / v, np.nan)
-
-        rsi_14 = pd.Series(_rsi(c, 14))
-        df["rsi_14"] = rsi_14.values
-
-        macd_line, signal_line, histogram = _macd(c)
-        df["macd"] = macd_line
-        df["macd_signal"] = signal_line
-        df["macd_hist"] = histogram
-        macd_hist_s = pd.Series(histogram)
-
-        bb_mid = sma20
-        bb_std = cs.rolling(20).std()
-        bb_upper = bb_mid + 2 * bb_std
-        bb_lower = bb_mid - 2 * bb_std
-        df["bb_upper"] = bb_upper.values
-        df["bb_lower"] = bb_lower.values
-        bb_width = np.where(bb_mid > 0, (bb_upper - bb_lower) / bb_mid, np.nan)
-        df["bb_width"] = bb_width
-        bb_range = bb_upper - bb_lower
-        df["bb_pct"] = np.where(bb_range > 0, (c - bb_lower) / bb_range, np.nan)
-
-        df["obv"] = _obv(c, v)
-
-        df["returns_skew_20"] = log_ret_s.rolling(20).skew().values
-        df["returns_kurt_20"] = log_ret_s.rolling(20).kurt().values
-
-        peak = cs.cummax()
-        df["drawdown"] = np.where(peak > 0, (c - peak) / peak, np.nan)
-
-        abs_ret = np.abs(log_ret)
-        df["amihud_illiquidity"] = np.where(qv > 0, abs_ret / qv, np.nan)
-
-        # --- NEW FEATURES ---
-
-        # Return statistics
-        return_mean_20 = log_ret_s.rolling(20).mean()
-        return_std_20 = log_ret_s.rolling(20).std(ddof=1)
-        df["return_mean_20"] = return_mean_20.values
-        df["return_std_20"] = return_std_20.values
-        df["return_zscore_20"] = np.where(return_std_20 > 0, (log_ret_s - return_mean_20) / return_std_20, np.nan)
-
-        return_mean_60 = log_ret_s.rolling(60).mean()
-        return_std_60 = log_ret_s.rolling(60).std(ddof=1)
-        df["return_zscore_60"] = np.where(return_std_60 > 0, (log_ret_s - return_mean_60) / return_std_60, np.nan)
-
-        # Candle wick patterns
-        real_body_high = np.maximum(o, c)
-        real_body_low = np.minimum(o, c)
-        upper_wick = hi - real_body_high
-        lower_wick = real_body_low - lo
-        candle_range = hi - lo
-        df["upper_wick"] = upper_wick
-        df["lower_wick"] = lower_wick
-        df["upper_wick_ratio"] = np.where(candle_range > 0, upper_wick / candle_range, np.nan)
-        df["lower_wick_ratio"] = np.where(candle_range > 0, lower_wick / candle_range, np.nan)
-        df["body_to_range"] = np.where(candle_range > 0, np.abs(c - o) / candle_range, np.nan)
-
-        # Price z-scores
-        std_20 = cs.rolling(20).std()
-        std_50 = cs.rolling(50).std()
-        std_200 = cs.rolling(200).std()
-        df["price_zscore_20"] = np.where(std_20 > 0, (cs - sma20) / std_20, np.nan)
-        df["price_zscore_50"] = np.where(std_50 > 0, (cs - sma50) / std_50, np.nan)
-        df["price_zscore_200"] = np.where(std_200 > 0, (cs - sma200) / std_200, np.nan)
-
-        # Distance from high/low
-        rolling_high_20 = hs.rolling(20).max()
-        rolling_low_20 = ls.rolling(20).min()
-        df["high_distance_20"] = np.where(rolling_high_20 > 0, (rolling_high_20 - hs) / rolling_high_20, np.nan)
-        df["low_distance_20"] = np.where(rolling_low_20 > 0, (ls - rolling_low_20) / rolling_low_20, np.nan)
-
-        # Volume features
-        volume_std_20 = vs.rolling(20).std()
-        volume_std_60 = vs.rolling(60).std()
-        df["volume_zscore_20"] = np.where(volume_std_20 > 0, (vs - volume_sma_20) / volume_std_20, np.nan)
-        df["volume_zscore_60"] = np.where(volume_std_60 > 0, (vs - volume_sma_60) / volume_std_60, np.nan)
-        df["volume_change_1"] = np.where(vs.shift(1) > 0, v / vs.shift(1).values - 1, np.nan)
-        df["volume_change_5"] = np.where(vs.shift(5) > 0, v / vs.shift(5).values - 1, np.nan)
-        df["vol_ratio_20_60"] = np.where(volume_sma_60 > 0, volume_sma_20 / volume_sma_60, np.nan)
-
-        # Volume trend (linear regression slope over 20 bars, normalized)
-        df["volume_trend_20"] = _rolling_slope(vs, 20)
-
-        # Volatility changes
-        vol_20_prev1 = vol_20.shift(1)
-        vol_20_prev5 = vol_20.shift(5)
-        df["vol_change_1"] = np.where(vol_20_prev1 > 0, vol_20 / vol_20_prev1 - 1, np.nan)
-        df["vol_change_5"] = np.where(vol_20_prev5 > 0, vol_20 / vol_20_prev5 - 1, np.nan)
-        df["atr_ratio"] = np.where(atr14.shift(14) > 0, atr14 / atr14.shift(14) - 1, np.nan)
-
-        # Momentum changes
-        df["rsi_change_1"] = (rsi_14 - rsi_14.shift(1)).values
-        df["rsi_change_5"] = (rsi_14 - rsi_14.shift(5)).values
-        df["macd_hist_change_1"] = (macd_hist_s - macd_hist_s.shift(1)).values
-        df["macd_hist_change_5"] = (macd_hist_s - macd_hist_s.shift(5)).values
-        macd_hist_mean_20 = macd_hist_s.rolling(20).mean()
-        macd_hist_std_20 = macd_hist_s.rolling(20).std()
-        df["macd_hist_zscore_20"] = np.where(
-            macd_hist_std_20 > 0,
-            (macd_hist_s - macd_hist_mean_20) / macd_hist_std_20,
-            np.nan,
-        )
-
-        # Bollinger changes
-        bb_width_s = pd.Series(bb_width)
-        df["bb_width_change"] = (bb_width_s - bb_width_s.shift(1)).values
-        bb_width_mean_20 = bb_width_s.rolling(20).mean()
-        bb_width_std_20 = bb_width_s.rolling(20).std()
-        df["bb_width_zscore_20"] = np.where(
-            bb_width_std_20 > 0,
-            (bb_width_s - bb_width_mean_20) / bb_width_std_20,
-            np.nan,
-        )
-        bb_pct_s = pd.Series(df["bb_pct"].values)
-        df["bb_pct_change"] = (bb_pct_s - bb_pct_s.shift(1)).values
-
-        # Buy pressure change
-        buy_pressure = pd.Series(df["taker_buy_vol_ratio"].values)
-        df["buy_pressure_change"] = (buy_pressure - buy_pressure.shift(1)).values
-
-        # Trade features
-        tc_s = pd.Series(tc)
-        df["trade_count_change"] = np.where(tc_s.shift(1) > 0, tc / tc_s.shift(1).values - 1, np.nan)
-        tc_mean_20 = tc_s.rolling(20).mean()
-        tc_std_20 = tc_s.rolling(20).std()
-        df["trade_count_zscore_20"] = np.where(tc_std_20 > 0, (tc_s - tc_mean_20) / tc_std_20, np.nan)
         avg_trade = np.where(tc > 0, v / tc, np.nan)
-        df["avg_trade_size"] = avg_trade
-        avg_trade_s = pd.Series(avg_trade)
-        avg_trade_mean_20 = avg_trade_s.rolling(20).mean()
-        avg_trade_std_20 = avg_trade_s.rolling(20).std()
-        df["avg_trade_size_zscore_20"] = np.where(
-            avg_trade_std_20 > 0,
-            (avg_trade_s - avg_trade_mean_20) / avg_trade_std_20,
-            np.nan,
+
+        rsi_arr = _rsi(c, 14)
+        macd_line, signal_line, histogram = _macd(c)
+
+        out = df.with_columns(
+            pl.Series("log_ret", log_ret),
+            pl.Series("tr", tr),
+            pl.Series("rsi_14", rsi_arr),
+            pl.Series("macd", macd_line),
+            pl.Series("macd_signal", signal_line),
+            pl.Series("macd_hist", histogram),
+            pl.Series("obv", _obv(c, v)),
+            pl.Series("returns_kurt_20", _rolling_kurt(log_ret, 20)),
+            pl.Series("volume_trend_20", _rolling_slope(v, 20)),
+            pl.Series("avg_trade_size", avg_trade),
         )
 
-        # Risk features
-        drawdown_s = pd.Series(df["drawdown"].values)
-        df["drawdown_change"] = (drawdown_s - drawdown_s.shift(1)).values
+        out = out.with_columns(
+            [
+                pl.col("log_ret").alias("ret_1b"),
+                pl.when(pl.col("open") > 0).then(pl.col("close") / pl.col("open") - 1).otherwise(np.nan).alias(
+                    "ret_open_to_close"
+                ),
+                pl.col("log_ret").shift(2).alias("ret_3b"),
+                pl.col("log_ret").shift(4).alias("ret_5b"),
+                pl.col("log_ret").shift(9).alias("ret_10b"),
+                pl.col("log_ret").shift(19).alias("ret_20b"),
+                pl.col("log_ret").shift(59).alias("ret_60b"),
+                pl.when(pl.col("close") > 0)
+                .then((pl.col("high") - pl.col("low")) / pl.col("close"))
+                .otherwise(np.nan)
+                .alias("hl_range"),
+                pl.when(pl.col("close") > 0)
+                .then((pl.col("close") - pl.col("open")).abs() / pl.col("close"))
+                .otherwise(np.nan)
+                .alias("body_range"),
+            ]
+        )
 
-        peak_arr = peak.values
+        out = out.with_columns(
+            [
+                pl.col("close").rolling_mean(20, min_periods=20).alias("sma20"),
+                pl.col("close").rolling_mean(50, min_periods=50).alias("sma50"),
+                pl.col("close").rolling_mean(200, min_periods=200).alias("sma200"),
+                pl.col("close").rolling_std(20, min_periods=20).alias("bb_std"),
+                pl.col("close").rolling_std(20, min_periods=20).alias("std_20"),
+                pl.col("close").rolling_std(50, min_periods=50).alias("std_50"),
+                pl.col("close").rolling_std(200, min_periods=200).alias("std_200"),
+                pl.col("close").ewm_mean(span=9, adjust=False).alias("ema9"),
+                pl.col("close").ewm_mean(span=21, adjust=False).alias("ema21"),
+                pl.col("close").ewm_mean(span=50, adjust=False).alias("ema50"),
+                pl.col("volume").rolling_mean(20, min_periods=20).alias("volume_sma_20"),
+                pl.col("volume").rolling_mean(60, min_periods=60).alias("volume_sma_60"),
+                pl.col("volume").rolling_std(20, min_periods=20).alias("volume_std_20"),
+                pl.col("volume").rolling_std(60, min_periods=60).alias("volume_std_60"),
+                pl.col("high").rolling_max(20, min_periods=20).alias("rolling_high_20"),
+                pl.col("low").rolling_min(20, min_periods=20).alias("rolling_low_20"),
+                pl.col("log_ret").rolling_std(20, min_periods=20).alias("vol_20"),
+                pl.col("log_ret").rolling_std(60, min_periods=60).alias("vol_60"),
+                pl.col("log_ret").rolling_skew(20, bias=False, min_samples=20).alias("returns_skew_20"),
+                pl.col("log_ret").rolling_mean(20, min_periods=20).alias("return_mean_20"),
+                pl.col("log_ret").rolling_std(20, min_periods=20).alias("return_std_20"),
+                pl.col("log_ret").rolling_mean(60, min_periods=60).alias("return_mean_60"),
+                pl.col("log_ret").rolling_std(60, min_periods=60).alias("return_std_60"),
+                pl.col("macd_hist").rolling_mean(20, min_periods=20).alias("macd_hist_mean_20"),
+                pl.col("macd_hist").rolling_std(20, min_periods=20).alias("macd_hist_std_20"),
+                pl.col("tr").rolling_mean(14, min_periods=14).alias("atr14"),
+                pl.col("close").cum_max().alias("peak"),
+                pl.col("trades_count").cast(pl.Float64).rolling_mean(20, min_periods=20).alias("tc_mean_20"),
+                pl.col("trades_count").cast(pl.Float64).rolling_std(20, min_periods=20).alias("tc_std_20"),
+            ]
+        )
+
+        out = out.with_columns(
+            [
+                pl.when(pl.col("sma20") > 0)
+                .then((pl.col("close") - pl.col("sma20")) / pl.col("sma20"))
+                .otherwise(np.nan)
+                .alias("dist_sma_20"),
+                pl.when(pl.col("sma50") > 0)
+                .then((pl.col("close") - pl.col("sma50")) / pl.col("sma50"))
+                .otherwise(np.nan)
+                .alias("dist_sma_50"),
+                pl.when(pl.col("sma200") > 0)
+                .then((pl.col("close") - pl.col("sma200")) / pl.col("sma200"))
+                .otherwise(np.nan)
+                .alias("dist_sma_200"),
+                pl.when(pl.col("ema21") > 0)
+                .then((pl.col("ema9") - pl.col("ema21")) / pl.col("ema21"))
+                .otherwise(np.nan)
+                .alias("ema_diff_9_21"),
+                pl.when(pl.col("ema50") > 0)
+                .then((pl.col("ema21") - pl.col("ema50")) / pl.col("ema50"))
+                .otherwise(np.nan)
+                .alias("ema_diff_21_50"),
+                pl.when(pl.col("close") > 0)
+                .then(pl.col("atr14") / pl.col("close"))
+                .otherwise(np.nan)
+                .alias("atr_14_norm"),
+                pl.when(pl.col("volume_sma_20") > 0)
+                .then(pl.col("volume") / pl.col("volume_sma_20"))
+                .otherwise(np.nan)
+                .alias("volume_rel_20"),
+                pl.when(pl.col("volume") > 0)
+                .then(pl.col("taker_buy_volume") / pl.col("volume"))
+                .otherwise(np.nan)
+                .alias("taker_buy_vol_ratio"),
+                (pl.col("sma20") + 2 * pl.col("bb_std")).alias("bb_upper"),
+                (pl.col("sma20") - 2 * pl.col("bb_std")).alias("bb_lower"),
+                pl.when(pl.col("peak") > 0)
+                .then((pl.col("close") - pl.col("peak")) / pl.col("peak"))
+                .otherwise(np.nan)
+                .alias("drawdown"),
+                pl.when(pl.col("quote_volume") > 0)
+                .then(pl.col("log_ret").abs() / pl.col("quote_volume"))
+                .otherwise(np.nan)
+                .alias("amihud_illiquidity"),
+                pl.when(pl.col("return_std_20") > 0)
+                .then((pl.col("log_ret") - pl.col("return_mean_20")) / pl.col("return_std_20"))
+                .otherwise(np.nan)
+                .alias("return_zscore_20"),
+                pl.when(pl.col("return_std_60") > 0)
+                .then((pl.col("log_ret") - pl.col("return_mean_60")) / pl.col("return_std_60"))
+                .otherwise(np.nan)
+                .alias("return_zscore_60"),
+                pl.when(pl.col("std_20") > 0)
+                .then((pl.col("close") - pl.col("sma20")) / pl.col("std_20"))
+                .otherwise(np.nan)
+                .alias("price_zscore_20"),
+                pl.when(pl.col("std_50") > 0)
+                .then((pl.col("close") - pl.col("sma50")) / pl.col("std_50"))
+                .otherwise(np.nan)
+                .alias("price_zscore_50"),
+                pl.when(pl.col("std_200") > 0)
+                .then((pl.col("close") - pl.col("sma200")) / pl.col("std_200"))
+                .otherwise(np.nan)
+                .alias("price_zscore_200"),
+                pl.when(pl.col("rolling_high_20") > 0)
+                .then((pl.col("rolling_high_20") - pl.col("high")) / pl.col("rolling_high_20"))
+                .otherwise(np.nan)
+                .alias("high_distance_20"),
+                pl.when(pl.col("rolling_low_20") > 0)
+                .then((pl.col("low") - pl.col("rolling_low_20")) / pl.col("rolling_low_20"))
+                .otherwise(np.nan)
+                .alias("low_distance_20"),
+                pl.when(pl.col("volume_std_20") > 0)
+                .then((pl.col("volume") - pl.col("volume_sma_20")) / pl.col("volume_std_20"))
+                .otherwise(np.nan)
+                .alias("volume_zscore_20"),
+                pl.when(pl.col("volume_std_60") > 0)
+                .then((pl.col("volume") - pl.col("volume_sma_60")) / pl.col("volume_std_60"))
+                .otherwise(np.nan)
+                .alias("volume_zscore_60"),
+                pl.when(pl.col("volume").shift(1) > 0)
+                .then(pl.col("volume") / pl.col("volume").shift(1) - 1)
+                .otherwise(np.nan)
+                .alias("volume_change_1"),
+                pl.when(pl.col("volume").shift(5) > 0)
+                .then(pl.col("volume") / pl.col("volume").shift(5) - 1)
+                .otherwise(np.nan)
+                .alias("volume_change_5"),
+                pl.when(pl.col("volume_sma_60") > 0)
+                .then(pl.col("volume_sma_20") / pl.col("volume_sma_60"))
+                .otherwise(np.nan)
+                .alias("vol_ratio_20_60"),
+                pl.when(pl.col("vol_20").shift(1) > 0)
+                .then(pl.col("vol_20") / pl.col("vol_20").shift(1) - 1)
+                .otherwise(np.nan)
+                .alias("vol_change_1"),
+                pl.when(pl.col("vol_20").shift(5) > 0)
+                .then(pl.col("vol_20") / pl.col("vol_20").shift(5) - 1)
+                .otherwise(np.nan)
+                .alias("vol_change_5"),
+                pl.when(pl.col("atr14").shift(14) > 0)
+                .then(pl.col("atr14") / pl.col("atr14").shift(14) - 1)
+                .otherwise(np.nan)
+                .alias("atr_ratio"),
+                pl.when(pl.col("macd_hist_std_20") > 0)
+                .then(
+                    (pl.col("macd_hist") - pl.col("macd_hist_mean_20")) / pl.col("macd_hist_std_20")
+                )
+                .otherwise(np.nan)
+                .alias("macd_hist_zscore_20"),
+            ]
+        )
+
+        out = out.with_columns(
+            [
+                (pl.max_horizontal("open", "close")).alias("_real_body_high"),
+                (pl.min_horizontal("open", "close")).alias("_real_body_low"),
+            ]
+        )
+
+        out = out.with_columns(
+            [
+                (pl.col("high") - pl.col("_real_body_high")).alias("upper_wick"),
+                (pl.col("_real_body_low") - pl.col("low")).alias("lower_wick"),
+            ]
+        )
+
+        out = out.with_columns(
+            [
+                pl.when((pl.col("high") - pl.col("low")) > 0)
+                .then(pl.col("upper_wick") / (pl.col("high") - pl.col("low")))
+                .otherwise(np.nan)
+                .alias("upper_wick_ratio"),
+                pl.when((pl.col("high") - pl.col("low")) > 0)
+                .then(pl.col("lower_wick") / (pl.col("high") - pl.col("low")))
+                .otherwise(np.nan)
+                .alias("lower_wick_ratio"),
+                pl.when((pl.col("high") - pl.col("low")) > 0)
+                .then((pl.col("close") - pl.col("open")).abs() / (pl.col("high") - pl.col("low")))
+                .otherwise(np.nan)
+                .alias("body_to_range"),
+                pl.when(pl.col("sma20") > 0)
+                .then((pl.col("bb_upper") - pl.col("bb_lower")) / pl.col("sma20"))
+                .otherwise(np.nan)
+                .alias("bb_width"),
+                pl.when((pl.col("bb_upper") - pl.col("bb_lower")) > 0)
+                .then((pl.col("close") - pl.col("bb_lower")) / (pl.col("bb_upper") - pl.col("bb_lower")))
+                .otherwise(np.nan)
+                .alias("bb_pct"),
+            ]
+        )
+
+        out = out.with_columns(
+            [
+                (pl.col("rsi_14") - pl.col("rsi_14").shift(1)).alias("rsi_change_1"),
+                (pl.col("rsi_14") - pl.col("rsi_14").shift(5)).alias("rsi_change_5"),
+                (pl.col("macd_hist") - pl.col("macd_hist").shift(1)).alias("macd_hist_change_1"),
+                (pl.col("macd_hist") - pl.col("macd_hist").shift(5)).alias("macd_hist_change_5"),
+                pl.col("bb_width").rolling_mean(20, min_periods=20).alias("bb_width_mean_20"),
+                pl.col("bb_width").rolling_std(20, min_periods=20).alias("bb_width_std_20"),
+                (pl.col("bb_width") - pl.col("bb_width").shift(1)).alias("bb_width_change"),
+                (pl.col("bb_pct") - pl.col("bb_pct").shift(1)).alias("bb_pct_change"),
+                (pl.col("taker_buy_vol_ratio") - pl.col("taker_buy_vol_ratio").shift(1)).alias(
+                    "buy_pressure_change"
+                ),
+                pl.when(pl.col("trades_count").cast(pl.Float64).shift(1) > 0)
+                .then(
+                    pl.col("trades_count").cast(pl.Float64) / pl.col("trades_count").cast(pl.Float64).shift(1) - 1
+                )
+                .otherwise(np.nan)
+                .alias("trade_count_change"),
+                pl.when(pl.col("tc_std_20") > 0)
+                .then(
+                    (pl.col("trades_count").cast(pl.Float64) - pl.col("tc_mean_20")) / pl.col("tc_std_20")
+                )
+                .otherwise(np.nan)
+                .alias("trade_count_zscore_20"),
+                pl.col("avg_trade_size").rolling_mean(20, min_periods=20).alias("avg_trade_mean_20"),
+                pl.col("avg_trade_size").rolling_std(20, min_periods=20).alias("avg_trade_std_20"),
+                (pl.col("drawdown") - pl.col("drawdown").shift(1)).alias("drawdown_change"),
+            ]
+        )
+
+        out = out.with_columns(
+            [
+                pl.when(pl.col("bb_width_std_20") > 0)
+                .then((pl.col("bb_width") - pl.col("bb_width_mean_20")) / pl.col("bb_width_std_20"))
+                .otherwise(np.nan)
+                .alias("bb_width_zscore_20"),
+                pl.when(pl.col("avg_trade_std_20") > 0)
+                .then((pl.col("avg_trade_size") - pl.col("avg_trade_mean_20")) / pl.col("avg_trade_std_20"))
+                .otherwise(np.nan)
+                .alias("avg_trade_size_zscore_20"),
+            ]
+        )
+
+        peak_arr = out["peak"].to_numpy()
         dd_duration = np.full(len(c), np.nan)
         dd_recovery = np.full(len(c), np.nan)
         trough_since_peak = c[0]
@@ -263,10 +343,48 @@ class CryptoHistory:
                 dd_recovery[i] = (c[i] - trough_since_peak) / (peak_val - trough_since_peak)
             else:
                 dd_recovery[i] = 1.0
-        df["drawdown_duration"] = dd_duration
-        df["recovery_from_drawdown"] = dd_recovery
 
-        return df
+        out = out.with_columns(
+            pl.Series("drawdown_duration", dd_duration),
+            pl.Series("recovery_from_drawdown", dd_recovery),
+        )
+
+        drop_cols = [
+            "log_ret",
+            "tr",
+            "sma20",
+            "sma50",
+            "sma200",
+            "std_20",
+            "std_50",
+            "std_200",
+            "bb_std",
+            "ema9",
+            "ema21",
+            "ema50",
+            "volume_sma_60",
+            "volume_std_20",
+            "volume_std_60",
+            "rolling_high_20",
+            "rolling_low_20",
+            "return_mean_60",
+            "return_std_60",
+            "macd_hist_mean_20",
+            "macd_hist_std_20",
+            "atr14",
+            "peak",
+            "tc_mean_20",
+            "tc_std_20",
+            "bb_width_mean_20",
+            "bb_width_std_20",
+            "avg_trade_mean_20",
+            "avg_trade_std_20",
+            "_real_body_high",
+            "_real_body_low",
+        ]
+        out = out.drop([c for c in drop_cols if c in out.columns])
+
+        return out
 
 
 def _rsi(closes: np.ndarray, period: int = 14) -> np.ndarray:
@@ -298,11 +416,11 @@ def _macd(
     slow: int = 26,
     signal: int = 9,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    cs = pd.Series(closes)
-    ema_fast = cs.ewm(span=fast, adjust=False).mean()
-    ema_slow = cs.ewm(span=slow, adjust=False).mean()
-    macd_line = (ema_fast - ema_slow).values
-    signal_line = pd.Series(macd_line).ewm(span=signal, adjust=False).mean().values
+    cs = pl.Series(closes, dtype=pl.Float64)
+    ema_fast = cs.ewm_mean(span=fast, adjust=False)
+    ema_slow = cs.ewm_mean(span=slow, adjust=False)
+    macd_line = (ema_fast - ema_slow).to_numpy()
+    signal_line = pl.Series(macd_line, dtype=pl.Float64).ewm_mean(span=signal, adjust=False).to_numpy()
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
 
@@ -313,12 +431,12 @@ def _obv(closes: np.ndarray, volumes: np.ndarray) -> np.ndarray:
     return obv
 
 
-def _rolling_slope(series: pd.Series, window: int) -> np.ndarray:
+def _rolling_slope(series: np.ndarray, window: int) -> np.ndarray:
     x = np.arange(window, dtype=float)
     x_mean = x.mean()
     x_var = ((x - x_mean) ** 2).sum()
-    result = np.full(len(series), np.nan)
-    vals = series.values
+    vals = np.asarray(series, dtype=float)
+    result = np.full(len(vals), np.nan)
     for i in range(window - 1, len(vals)):
         y = vals[i - window + 1 : i + 1]
         if np.any(np.isnan(y)):
@@ -329,6 +447,24 @@ def _rolling_slope(series: pd.Series, window: int) -> np.ndarray:
         else:
             result[i] = ((x - x_mean) * (y - y_mean)).sum() / x_var
     return result
+
+
+def _rolling_kurt(vals: np.ndarray, w: int) -> np.ndarray:
+    """Unbiased (Fisher) excess kurtosis matching pandas ``rolling(w).kurt()``."""
+    out = np.full(len(vals), np.nan)
+    for i in range(w - 1, len(vals)):
+        y = vals[i - w + 1 : i + 1]
+        if np.any(np.isnan(y)):
+            continue
+        m = np.mean(y)
+        dev = y - m
+        s2 = np.sum(dev**2)
+        if s2 == 0:
+            continue
+        m4 = np.sum(dev**4)
+        k = (w * (w + 1) * (w - 1)) / ((w - 2) * (w - 3)) * m4 / (s2**2) - (3 * (w - 1) ** 2) / ((w - 2) * (w - 3))
+        out[i] = k
+    return out
 
 
 def _to_float(value: object) -> float:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from hermes.features.country_risk_features.pipeline import pipeline
@@ -123,12 +123,12 @@ class TestPipeline:
 
     async def test_build_training_panel(self, pipe):
         async def fn(c, mode="ML"):
-            return pd.Series([2.5, 1.9], index=pd.date_range("2023-01-01", periods=2, freq="MS"))
+            return pl.DataFrame({"date": ["2023", "2024"], "value": [2.5, 1.9]})
 
         fns = [fn]
         result = await pipe.build_training_panel(fns, ["USA"])
-        assert isinstance(result, pd.DataFrame)
-        assert not result.empty
+        assert isinstance(result, pl.DataFrame)
+        assert not result.is_empty()
 
     async def test_build_training_panel_multiple_countries(self, pipe):
         fns = [
@@ -136,8 +136,8 @@ class TestPipeline:
             pipe.eco.inflation_cpi_yoy,
         ]
         result = await pipe.build_training_panel(fns, ["USA", "GBR"])
-        assert isinstance(result, pd.DataFrame)
+        assert isinstance(result, pl.DataFrame)
 
     async def test_build_training_panel_no_countries(self, pipe):
         result = await pipe.build_training_panel([], [])
-        assert result.empty
+        assert result.is_empty()

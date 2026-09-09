@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
-import pandas as pd
 import pytest
 
 from hermes.connectors.fred import FRED
@@ -57,10 +56,10 @@ class TestFRED:
 
         with patch("hermes.connectors.fred.connector.aiohttp.ClientSession", return_value=mock_session):
             df = await fred._fetch(series_id="GDPC1")
-            assert not df.empty
-            assert df["value"].iloc[0] == "27360.863"
-            assert df["series_id"].iloc[0] == "GDPC1"
-            assert df["unit"].iloc[0] == "Billions of Dollars"
+            assert not df.is_empty()
+            assert df["value"].item(0) == "27360.863"
+            assert df["series_id"].item(0) == "GDPC1"
+            assert df["unit"].item(0) == "Billions of Dollars"
 
     async def test_fetch_404(self):
         fred = FRED(api="test-key", cache=None)
@@ -111,5 +110,5 @@ class TestFRED:
             df1 = await fred.fetch(series_id="GDPC1")
             df2 = await fred.fetch(series_id="GDPC1")
             assert mock_session.get.call_count == 1
-            assert not df1.empty
-            assert not df2.empty
+            assert not df1.is_empty()
+            assert not df2.is_empty()

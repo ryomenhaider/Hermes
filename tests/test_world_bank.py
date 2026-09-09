@@ -52,10 +52,10 @@ class TestWorldBank:
 
         with patch("hermes.connectors.world_bank.connector.aiohttp.ClientSession", return_value=mock_session):
             df = await wb._fetch("USA", "NY.GDP.MKTP.KD.ZG")
-            assert not df.empty
-            assert df["value"].iloc[0] == 2.5
-            assert df["country"].iloc[0] == "USA"
-            assert df["source"].iloc[0] == "World_Bank"
+            assert not df.is_empty()
+            assert df["value"].item(0) == 2.5
+            assert df["country"].item(0) == "USA"
+            assert df["source"].item(0) == "World_Bank"
 
     async def test_fetch_no_data(self):
         wb = World_bank(cache=None)
@@ -65,7 +65,7 @@ class TestWorldBank:
 
         with patch("hermes.connectors.world_bank.connector.aiohttp.ClientSession", return_value=mock_session):
             df = await wb._fetch("XYZ", "SOME.IND")
-            assert df.empty
+            assert df.is_empty()
 
     async def test_fetch_http_error(self):
         wb = World_bank(cache=None)
@@ -107,5 +107,5 @@ class TestWorldBank:
             df1 = await wb.fetch("USA", "GDP.PROT")
             df2 = await wb.fetch("USA", "GDP.PROT")
             assert mock_session.get.call_count == 1
-            assert not df1.empty
-            assert not df2.empty
+            assert not df1.is_empty()
+            assert not df2.is_empty()

@@ -1,7 +1,7 @@
-import pandas as pd
+import polars as pl
 
 
-def records_to_dataframe(records: list) -> pd.DataFrame:
+def records_to_dataframe(records: list) -> pl.DataFrame:
     data = [
         {
             "date": record["date"],
@@ -14,12 +14,9 @@ def records_to_dataframe(records: list) -> pd.DataFrame:
         for record in records
     ]
 
-    data = pd.DataFrame(data)
+    data = pl.DataFrame(data)
 
-    data.set_index("date", inplace=True)
-    data.sort_index(ascending=False, inplace=True)
-
-    data = data.reset_index()
+    data = data.sort("date", descending=True)
     return data
 
 

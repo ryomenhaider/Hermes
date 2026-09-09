@@ -2,7 +2,7 @@ import math
 from datetime import UTC, datetime
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from hermes.connectors.binance import Binance
 from hermes.features.financial.models.technical import TechnicalSnapshot
@@ -34,8 +34,8 @@ class TAfeatures:
         if len(values) < period:
             return float("nan")
 
-        series = pd.Series(values, dtype=float)
-        return float(series.ewm(span=period, adjust=False).mean().iloc[-1])
+        series = pl.Series(values, dtype=pl.Float64)
+        return float(series.ewm_mean(span=period, adjust=False)[-1])
 
     @staticmethod
     def _zscore(values):

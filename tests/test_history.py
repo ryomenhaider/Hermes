@@ -3,7 +3,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from hermes.constants import (
@@ -58,11 +58,11 @@ class TestFreqMappings:
         assert BINANCE_INTERVAL_MS["1w"] == 604_800_000
 
 
-def _make_ohlcv_df(n: int = 250, start_price: float = 100.0) -> pd.DataFrame:
+def _make_ohlcv_df(n: int = 250, start_price: float = 100.0) -> pl.DataFrame:
     np.random.seed(42)
     prices = start_price + np.cumsum(np.random.randn(n) * 0.5)
     prices = np.maximum(prices, 1.0)
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "open_time": np.arange(n) * 86_400_000,
             "open": prices * 0.99,
@@ -80,8 +80,10 @@ def _make_ohlcv_df(n: int = 250, start_price: float = 100.0) -> pd.DataFrame:
 class TestTAHistoryFeatures:
     def test_compute_features_output_columns(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
 
         expected_cols = [
@@ -163,27 +165,33 @@ class TestTAHistoryFeatures:
 
     def test_compute_features_row_count(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
         assert len(result) == 250
 
     def test_wick_ratios_bounded(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
-        valid_upper = result["upper_wick_ratio"].dropna()
-        valid_lower = result["lower_wick_ratio"].dropna()
+        valid_upper = result["upper_wick_ratio"].drop_nans()
+        valid_lower = result["lower_wick_ratio"].drop_nans()
         assert (valid_upper >= 0).all() and (valid_upper <= 1).all()
         assert (valid_lower >= 0).all() and (valid_lower <= 1).all()
 
     def test_body_to_range_bounded(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
-        valid = result["body_to_range"].dropna()
+        valid = result["body_to_range"].drop_nans()
         assert (valid >= 0).all() and (valid <= 1).all()
 
     def test_rsi_bounded(self):
@@ -209,56 +217,68 @@ class TestTAHistoryFeatures:
 
     def test_drawdown_always_non_positive(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
-        valid = result["drawdown"].dropna()
+        valid = result["drawdown"].drop_nans()
         assert (valid <= 0).all()
 
     def test_drawdown_duration_non_negative(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
-        valid = result["drawdown_duration"].dropna()
+        valid = result["drawdown_duration"].drop_nans()
         assert (valid >= 0).all()
 
     def test_recovery_from_drawdown_bounded(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
-        valid = result["recovery_from_drawdown"].dropna()
+        valid = result["recovery_from_drawdown"].drop_nans()
         assert (valid >= 0).all() and (valid <= 1).all()
 
     def test_price_zscore_20_bounded_reasonably(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
-        valid = result["price_zscore_20"].dropna()
+        valid = result["price_zscore_20"].drop_nans()
         assert valid.abs().max() < 10
 
     def test_rolling_slope(self):
-        series = pd.Series(np.arange(20.0))
+        series = pl.Series(np.arange(20.0))
         result = _rolling_slope(series, 5)
         assert not np.isnan(result[-1])
         assert result[-1] == pytest.approx(1.0, abs=0.01)
 
     def test_volume_change_non_negative(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
-        valid = result["volume_change_1"].dropna()
+        valid = result["volume_change_1"].drop_nans()
         assert (valid >= -1).all()
 
     def test_avg_trade_size_positive(self):
         df = _make_ohlcv_df(250)
-        df["symbol"] = "BTCUSDT"
-        df["interval"] = "1d"
+        df = df.with_columns(
+            pl.lit("BTCUSDT").alias("symbol"),
+            pl.lit("1d").alias("interval"),
+        )
         result = TAHistory._compute_features(df)
-        valid = result["avg_trade_size"].dropna()
+        valid = result["avg_trade_size"].drop_nans()
         assert (valid > 0).all()
 
 
@@ -266,9 +286,9 @@ class TestTAHistoryAsync:
     async def test_get_history_empty(self):
         ta = TAHistory()
         with patch.object(ta.binance, "fetch_history", new_callable=AsyncMock) as mock_fetch:
-            mock_fetch.return_value = pd.DataFrame()
+            mock_fetch.return_value = pl.DataFrame()
             result = await ta.get_history("BTCUSDT", interval="1d", years=1)
-            assert result.empty
+            assert result.is_empty()
 
     async def test_get_history_calls_features(self):
         ta = TAHistory()
@@ -276,7 +296,7 @@ class TestTAHistoryAsync:
         with patch.object(ta.binance, "fetch_history", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_df
             result = await ta.get_history("BTCUSDT", interval="1d", years=1)
-            assert not result.empty
+            assert not result.is_empty()
             assert "rsi_14" in result.columns
             assert "macd" in result.columns
             assert "drawdown_duration" in result.columns
@@ -284,8 +304,8 @@ class TestTAHistoryAsync:
 
 
 class TestFundamentalFeatures:
-    def _make_filing_df(self) -> pd.DataFrame:
-        return pd.DataFrame(
+    def _make_filing_df(self) -> pl.DataFrame:
+        return pl.DataFrame(
             [
                 {
                     "ticker": "AAPL",
@@ -364,11 +384,14 @@ class TestFundamentalFeatures:
             ]
         )
 
+    def _row_2024(self, result: pl.DataFrame) -> pl.DataFrame:
+        return result.filter(pl.col("fiscal_year") == 2024).row(0, named=True)
+
     def test_compute_fundamental_features_growth(self):
         df = self._make_filing_df()
         result = FAHistory._compute_fundamental_features(df)
         assert "revenue_growth_yoy" in result.columns
-        row = result[result["fiscal_year"] == 2024].iloc[0]
+        row = self._row_2024(result)
         expected = (94930 - 89498) / 89498
         assert row["revenue_growth_yoy"] == pytest.approx(expected, rel=1e-4)
 
@@ -379,7 +402,7 @@ class TestFundamentalFeatures:
         assert "operating_margin" in result.columns
         assert "net_margin" in result.columns
         assert "ocf_margin" in result.columns
-        row = result[result["fiscal_year"] == 2024].iloc[0]
+        row = self._row_2024(result)
         assert row["gross_margin"] == pytest.approx(38550 / 94930, rel=1e-4)
 
     def test_compute_fundamental_features_liquidity(self):
@@ -402,7 +425,7 @@ class TestFundamentalFeatures:
         assert "free_cash_flow" in result.columns
         assert "fcf_margin" in result.columns
         assert "capex_to_revenue" in result.columns
-        row = result[result["fiscal_year"] == 2024].iloc[0]
+        row = self._row_2024(result)
         assert row["free_cash_flow"] == pytest.approx(110543 - 9450, rel=1e-4)
 
     def test_compute_fundamental_features_shareholder(self):
@@ -416,15 +439,15 @@ class TestFundamentalFeatures:
         df = self._make_filing_df()
         result = FAHistory._compute_fundamental_features(df)
         assert "interest_coverage" in result.columns
-        row = result[result["fiscal_year"] == 2024].iloc[0]
+        row = self._row_2024(result)
         assert row["interest_coverage"] == pytest.approx(24170 / 2800, rel=1e-4)
 
     def test_compute_fundamental_empty_df(self):
-        result = FAHistory._compute_fundamental_features(pd.DataFrame())
-        assert result.empty
+        result = FAHistory._compute_fundamental_features(pl.DataFrame())
+        assert result.is_empty()
 
     def test_compute_fundamental_single_row(self):
-        df = self._make_filing_df().iloc[:1]
+        df = self._make_filing_df().slice(0, 1)
         result = FAHistory._compute_fundamental_features(df)
         assert len(result) == 1
 
@@ -472,7 +495,7 @@ class TestFAHistoryAsync:
         with patch.object(fa.sec, "fetch", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = None
             result = await fa.get_history(quarters=2, symbols=["AAPL"])
-            assert result.empty
+            assert result.is_empty()
 
     async def test_get_history_calls_sec(self):
         fa = FAHistory(finnhub_api="test", sec_email="test", sec_username="test", fred_api="test")
@@ -645,7 +668,7 @@ class TestFAHistoryAsync:
         with patch.object(fa.sec, "fetch", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_raw
             result = await fa.get_history(quarters=2, symbols=["AAPL"])
-            assert not result.empty
+            assert not result.is_empty()
             assert "revenue" in result.columns
             assert "gross_margin" in result.columns
 

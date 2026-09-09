@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from hermes.connectors.finnhub import FINNHUB
 from hermes.connectors.sec import SECEDGAR
@@ -124,7 +124,7 @@ class CompanyFiling:
         symbol: str,
         interval: str = "1d",
         years: int = 2,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         from hermes.constants import FINNHUB_RESOLUTION_MAP, SUPPORTED_STOCK_FREQS
 
         if interval not in SUPPORTED_STOCK_FREQS:
@@ -138,9 +138,8 @@ class CompanyFiling:
             years=years,
         )
 
-        if not df_finn.empty and len(df_finn) > 100:
-            df_finn["symbol"] = symbol
-            df_finn["interval"] = interval
+        if not df_finn.is_empty() and len(df_finn) > 100:
+            df_finn = df_finn.with_columns(pl.lit(symbol).alias("symbol"), pl.lit(interval).alias("interval"))
             return df_finn
 
         logger.info(f"Finnhub returned {len(df_finn)} rows for {symbol}, falling back to yfinance")
@@ -151,9 +150,8 @@ class CompanyFiling:
             years=years,
         )
 
-        if not df_yf.empty:
-            df_yf["symbol"] = symbol
-            df_yf["interval"] = interval
+        if not df_yf.is_empty():
+            df_yf = df_yf.with_columns(pl.lit(symbol).alias("symbol"), pl.lit(interval).alias("interval"))
 
         return df_yf
 
@@ -161,11 +159,11 @@ class CompanyFiling:
         self,
         quarters: int = 8,
         symbols: list[str] | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         from hermes.constants import TICKERS
 
         symbols = symbols or TICKERS
-        all_dfs: list[pd.DataFrame] = []
+        all_dfs: list[pl.DataFrame] = []
 
         for symbol in symbols:
             try:
@@ -187,136 +185,125 @@ class CompanyFiling:
 
             rows = _extract_funds_per_period(facts, periods, symbol)
             if rows:
-                df_sym = pd.DataFrame(rows)
+                df_sym = pl.DataFrame(rows)
                 df_sym = CompanyFiling._compute_fundamental_features(df_sym)
                 all_dfs.append(df_sym)
 
         if not all_dfs:
-            return pd.DataFrame()
+            return pl.DataFrame()
 
-        return pd.concat(all_dfs, ignore_index=True)
+        return pl.concat(all_dfs)
 
     @staticmethod
-    def _compute_fundamental_features(df: pd.DataFrame) -> pd.DataFrame:
-        if df.empty or len(df) < 2:
+    def _compute_fundamental_features(df: pl.DataFrame) -> pl.DataFrame:
+        if df.is_empty() or df.height < 2:
             return df
 
-        df = df.sort_values(["fiscal_year", "fiscal_period"]).reset_index(drop=True)
+        df = df.sort(["fiscal_year", "fiscal_period"])
+        df = df.with_row_index("_row_idx")
+        df = df.with_columns((pl.col("fiscal_year") - 1).alias("_key"))
 
-        period_order = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "FY": 5}
-        df["_period_num"] = df["fiscal_period"].map(period_order)
+        prev = df.select(
+            pl.col("fiscal_year"),
+            pl.col("fiscal_period"),
+            pl.col("_row_idx").alias("_prev_idx"),
+        )
+        df = df.join(
+            prev,
+            left_on=["_key", "fiscal_period"],
+            right_on=["fiscal_year", "fiscal_period"],
+            how="left",
+        )
 
-        def _safe_div(a: pd.Series, b: pd.Series) -> pd.Series:
-            return np.where(b > 0, a / b, np.nan)
+        def _safe_div(a: pl.Expr, b: pl.Expr) -> pl.Expr:
+            return pl.when(b > 0).then(a / b).otherwise(np.nan)
 
-        def _yoy_growth(current: pd.Series, periods_back: int) -> pd.Series:
-            shifted = current.shift(periods_back)
-            return np.where(shifted.abs() > 0, (current - shifted) / shifted.abs(), np.nan)
+        def _yoy(col_expr: pl.Expr) -> pl.Expr:
+            current = col_expr
+            prev_val = current.gather(pl.col("_prev_idx"))
+            return (
+                pl.when(
+                    pl.col("_prev_idx").is_not_null()
+                    & prev_val.is_not_null()
+                    & (prev_val != 0)
+                )
+                .then((current - prev_val) / prev_val.abs())
+                .otherwise(np.nan)
+            )
 
-        r = df["revenue"].astype(float)
-        gp = df["gross_profit"].astype(float)
-        oi = df["operating_income"].astype(float)
-        ni = df["net_income"].astype(float)
-        ocf = df["operating_cash_flow"].astype(float)
-        ca = df["current_assets"].astype(float)
-        cl = df["current_liabilities"].astype(float)
-        ta = df["total_assets"].astype(float)
-        eq = df["equity"].astype(float)
-        cash = df["cash"].astype(float)
-        inv = df["inventory"].astype(float)
-        ar = df["accounts_receivable"].astype(float)
-        ltd = df["long_term_debt"].astype(float)
-        std_ = df["short_term_debt"].astype(float)
-        capex = df["capital_expenditure"].astype(float)
-        ie = df["interest_expense"].astype(float).fillna(0)
-        eps_d = df["eps_diluted"].astype(float)
-        shares = df["shares_outstanding"].astype(float)
-        divs = df["dividends"].astype(float).fillna(0)
-        bbs = df["buybacks"].astype(float).fillna(0)
+        r = pl.col("revenue").cast(pl.Float64)
+        gp = pl.col("gross_profit").cast(pl.Float64)
+        oi = pl.col("operating_income").cast(pl.Float64)
+        ni = pl.col("net_income").cast(pl.Float64)
+        ocf = pl.col("operating_cash_flow").cast(pl.Float64)
+        ca = pl.col("current_assets").cast(pl.Float64)
+        cl = pl.col("current_liabilities").cast(pl.Float64)
+        ta = pl.col("total_assets").cast(pl.Float64)
+        eq = pl.col("equity").cast(pl.Float64)
+        cash = pl.col("cash").cast(pl.Float64)
+        inv = pl.col("inventory").cast(pl.Float64)
+        ar = pl.col("accounts_receivable").cast(pl.Float64)
+        ltd = pl.col("long_term_debt").cast(pl.Float64)
+        std_ = pl.col("short_term_debt").cast(pl.Float64)
+        capex = pl.col("capital_expenditure").cast(pl.Float64)
+        ie = pl.col("interest_expense").cast(pl.Float64).fill_null(0)
+        eps_d = pl.col("eps_diluted").cast(pl.Float64)
+        shares = pl.col("shares_outstanding").cast(pl.Float64)
+        divs = pl.col("dividends").cast(pl.Float64).fill_null(0)
+        bbs = pl.col("buybacks").cast(pl.Float64).fill_null(0)
         total_debt = std_ + ltd
-
-        prev_yoy_idx = np.full(len(df), -1, dtype=int)
-        for i in range(len(df)):
-            fy = df.iloc[i]["fiscal_year"]
-            fp = df.iloc[i]["fiscal_period"]
-            match = df[(df["fiscal_year"] == fy - 1) & (df["fiscal_period"] == fp)]
-            if not match.empty:
-                prev_yoy_idx[i] = match.index[0]
-
-        has_prev = prev_yoy_idx >= 0
-
-        def _yoy(col: pd.Series) -> np.ndarray:
-            result = np.full(len(df), np.nan)
-            vals = col.values.astype(float)
-            for i in range(len(df)):
-                if has_prev[i]:
-                    pi = prev_yoy_idx[i]
-                    if vals[pi] != 0 and not np.isnan(vals[pi]):
-                        result[i] = (vals[i] - vals[pi]) / abs(vals[pi])
-            return result
-
-        # Growth rates
-        df["revenue_growth_yoy"] = _yoy(r)
-        df["gross_profit_growth_yoy"] = _yoy(gp)
-        df["operating_income_growth_yoy"] = _yoy(oi)
-        df["net_income_growth_yoy"] = _yoy(ni)
-        df["eps_growth_yoy"] = _yoy(eps_d)
-        df["operating_cash_flow_growth_yoy"] = _yoy(ocf)
-
-        # Margins
-        df["gross_margin"] = _safe_div(gp, r)
-        df["operating_margin"] = _safe_div(oi, r)
-        df["net_margin"] = _safe_div(ni, r)
-        df["ocf_margin"] = _safe_div(ocf, r)
-
-        # Liquidity
-        df["current_ratio"] = _safe_div(ca, cl)
-        df["quick_ratio"] = _safe_div(ca - inv, cl)
-        df["cash_ratio"] = _safe_div(cash, cl)
-
-        # Leverage
-        df["cash_to_assets"] = _safe_div(cash, ta)
-        df["debt_to_equity"] = _safe_div(total_debt, eq)
-        df["debt_to_assets"] = _safe_div(total_debt, ta)
-        df["debt_to_capital"] = _safe_div(total_debt, total_debt + eq)
-        df["net_debt"] = total_debt - cash
-        df["net_debt_to_equity"] = _safe_div(total_debt - cash, eq)
-        df["debt_growth_yoy"] = _yoy(total_debt)
-        df["short_term_debt_ratio"] = _safe_div(std_, total_debt)
-        df["long_term_debt_ratio"] = _safe_div(ltd, total_debt)
-
-        # Cash flow quality
+        net_debt = total_debt - cash
         fcf = ocf - capex
-        df["free_cash_flow"] = fcf
-        df["fcf_margin"] = _safe_div(fcf, r)
-        df["capex_to_revenue"] = _safe_div(capex, r)
-        df["ocf_to_net_income"] = _safe_div(ocf, ni)
+        working_capital = ca - cl
 
-        # Efficiency
-        df["receivables_to_revenue"] = _safe_div(ar, r)
-        df["inventory_to_revenue"] = _safe_div(inv, r)
-        df["receivables_growth_yoy"] = _yoy(ar)
-        df["inventory_growth_yoy"] = _yoy(inv)
-        df["working_capital"] = ca - cl
-        df["working_capital_to_revenue"] = _safe_div(ca - cl, r)
+        out = df.with_columns(
+            [
+                _yoy(r).alias("revenue_growth_yoy"),
+                _yoy(gp).alias("gross_profit_growth_yoy"),
+                _yoy(oi).alias("operating_income_growth_yoy"),
+                _yoy(ni).alias("net_income_growth_yoy"),
+                _yoy(eps_d).alias("eps_growth_yoy"),
+                _yoy(ocf).alias("operating_cash_flow_growth_yoy"),
+                _safe_div(gp, r).alias("gross_margin"),
+                _safe_div(oi, r).alias("operating_margin"),
+                _safe_div(ni, r).alias("net_margin"),
+                _safe_div(ocf, r).alias("ocf_margin"),
+                _safe_div(ca, cl).alias("current_ratio"),
+                _safe_div(ca - inv, cl).alias("quick_ratio"),
+                _safe_div(cash, cl).alias("cash_ratio"),
+                _safe_div(cash, ta).alias("cash_to_assets"),
+                _safe_div(total_debt, eq).alias("debt_to_equity"),
+                _safe_div(total_debt, ta).alias("debt_to_assets"),
+                _safe_div(total_debt, total_debt + eq).alias("debt_to_capital"),
+                net_debt.alias("net_debt"),
+                _safe_div(total_debt - cash, eq).alias("net_debt_to_equity"),
+                _yoy(total_debt).alias("debt_growth_yoy"),
+                _safe_div(std_, total_debt).alias("short_term_debt_ratio"),
+                _safe_div(ltd, total_debt).alias("long_term_debt_ratio"),
+                fcf.alias("free_cash_flow"),
+                _safe_div(fcf, r).alias("fcf_margin"),
+                _safe_div(capex, r).alias("capex_to_revenue"),
+                _safe_div(ocf, ni).alias("ocf_to_net_income"),
+                _safe_div(ar, r).alias("receivables_to_revenue"),
+                _safe_div(inv, r).alias("inventory_to_revenue"),
+                _yoy(ar).alias("receivables_growth_yoy"),
+                _yoy(inv).alias("inventory_growth_yoy"),
+                working_capital.alias("working_capital"),
+                _safe_div(ca - cl, r).alias("working_capital_to_revenue"),
+                _yoy(ta).alias("asset_growth_yoy"),
+                _yoy(eq).alias("equity_growth_yoy"),
+                _yoy(cash).alias("cash_growth_yoy"),
+                _yoy(capex).alias("capex_growth_yoy"),
+                _yoy(fcf).alias("free_cash_flow_growth_yoy"),
+                _yoy(shares).alias("share_count_change_yoy"),
+                _yoy(bbs).alias("buyback_change_yoy"),
+                _yoy(divs).alias("dividend_change_yoy"),
+                _safe_div(bbs, ni).alias("buyback_to_net_income"),
+                _safe_div(divs, ni).alias("dividend_to_net_income"),
+                _safe_div(oi, ie).alias("interest_coverage"),
+            ]
+        )
 
-        # Balance sheet growth
-        df["asset_growth_yoy"] = _yoy(ta)
-        df["equity_growth_yoy"] = _yoy(eq)
-        df["cash_growth_yoy"] = _yoy(cash)
-        df["capex_growth_yoy"] = _yoy(capex)
-        df["free_cash_flow_growth_yoy"] = _yoy(pd.Series(fcf))
+        out = out.drop([c for c in ["_row_idx", "_prev_idx", "_key"] if c in out.columns])
 
-        # Shareholder
-        df["share_count_change_yoy"] = _yoy(shares)
-        df["buyback_change_yoy"] = _yoy(bbs)
-        df["dividend_change_yoy"] = _yoy(divs)
-        df["buyback_to_net_income"] = _safe_div(bbs, ni)
-        df["dividend_to_net_income"] = _safe_div(divs, ni)
-
-        # Coverage
-        df["interest_coverage"] = _safe_div(oi, ie)
-
-        df = df.drop(columns=["_period_num"])
-
-        return df
+        return out
