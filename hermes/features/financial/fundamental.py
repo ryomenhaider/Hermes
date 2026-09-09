@@ -110,6 +110,8 @@ class FAfeatures:
     async def get_fundamentels(self, symbol: str):
 
         raw_sec = await self.sec.fetch(symbol=symbol)
+        if not isinstance(raw_sec, dict):
+            raise TypeError(f"Expected dict from SEC, got {type(raw_sec)}")
         sec_funds = self.extract_funds_sec(data=raw_sec)
         filing_meta = self.extract_filing_meta(data=raw_sec)
         metric = await self.finn_metrics(symbol=symbol)
@@ -117,7 +119,7 @@ class FAfeatures:
         yf_data = await self._yf_data(symbol=symbol)
 
         return CompanyFundamental(
-            ticker=symbol,
+            symbol=symbol,
             filing_date=filing_meta["filing_date"],
             fiscal_period=filing_meta["fiscal_period"],
             fiscal_year=filing_meta["fiscal_year"],

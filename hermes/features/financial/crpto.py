@@ -41,12 +41,9 @@ class CryptoHistory:
     @staticmethod
     def _compute_features(df: pl.DataFrame) -> pl.DataFrame:
         c = df["close"].to_numpy().astype(float)
-        o = df["open"].to_numpy().astype(float)
         hi = df["high"].to_numpy().astype(float)
         lo = df["low"].to_numpy().astype(float)
         v = df["volume"].to_numpy().astype(float)
-        qv = df["quote_volume"].to_numpy().astype(float)
-        tbv = df["taker_buy_volume"].to_numpy().astype(float)
         tc = df["trades_count"].to_numpy().astype(float)
 
         log_ret = np.full(len(c), np.nan)
@@ -78,9 +75,10 @@ class CryptoHistory:
         out = out.with_columns(
             [
                 pl.col("log_ret").alias("ret_1b"),
-                pl.when(pl.col("open") > 0).then(pl.col("close") / pl.col("open") - 1).otherwise(np.nan).alias(
-                    "ret_open_to_close"
-                ),
+                pl.when(pl.col("open") > 0)
+                .then(pl.col("close") / pl.col("open") - 1)
+                .otherwise(np.nan)
+                .alias("ret_open_to_close"),
                 pl.col("log_ret").shift(2).alias("ret_3b"),
                 pl.col("log_ret").shift(4).alias("ret_5b"),
                 pl.col("log_ret").shift(9).alias("ret_10b"),
@@ -99,35 +97,35 @@ class CryptoHistory:
 
         out = out.with_columns(
             [
-                pl.col("close").rolling_mean(20, min_periods=20).alias("sma20"),
-                pl.col("close").rolling_mean(50, min_periods=50).alias("sma50"),
-                pl.col("close").rolling_mean(200, min_periods=200).alias("sma200"),
-                pl.col("close").rolling_std(20, min_periods=20).alias("bb_std"),
-                pl.col("close").rolling_std(20, min_periods=20).alias("std_20"),
-                pl.col("close").rolling_std(50, min_periods=50).alias("std_50"),
-                pl.col("close").rolling_std(200, min_periods=200).alias("std_200"),
+                pl.col("close").rolling_mean(20, min_samples=20).alias("sma20"),
+                pl.col("close").rolling_mean(50, min_samples=50).alias("sma50"),
+                pl.col("close").rolling_mean(200, min_samples=200).alias("sma200"),
+                pl.col("close").rolling_std(20, min_samples=20).alias("bb_std"),
+                pl.col("close").rolling_std(20, min_samples=20).alias("std_20"),
+                pl.col("close").rolling_std(50, min_samples=50).alias("std_50"),
+                pl.col("close").rolling_std(200, min_samples=200).alias("std_200"),
                 pl.col("close").ewm_mean(span=9, adjust=False).alias("ema9"),
                 pl.col("close").ewm_mean(span=21, adjust=False).alias("ema21"),
                 pl.col("close").ewm_mean(span=50, adjust=False).alias("ema50"),
-                pl.col("volume").rolling_mean(20, min_periods=20).alias("volume_sma_20"),
-                pl.col("volume").rolling_mean(60, min_periods=60).alias("volume_sma_60"),
-                pl.col("volume").rolling_std(20, min_periods=20).alias("volume_std_20"),
-                pl.col("volume").rolling_std(60, min_periods=60).alias("volume_std_60"),
-                pl.col("high").rolling_max(20, min_periods=20).alias("rolling_high_20"),
-                pl.col("low").rolling_min(20, min_periods=20).alias("rolling_low_20"),
-                pl.col("log_ret").rolling_std(20, min_periods=20).alias("vol_20"),
-                pl.col("log_ret").rolling_std(60, min_periods=60).alias("vol_60"),
+                pl.col("volume").rolling_mean(20, min_samples=20).alias("volume_sma_20"),
+                pl.col("volume").rolling_mean(60, min_samples=60).alias("volume_sma_60"),
+                pl.col("volume").rolling_std(20, min_samples=20).alias("volume_std_20"),
+                pl.col("volume").rolling_std(60, min_samples=60).alias("volume_std_60"),
+                pl.col("high").rolling_max(20, min_samples=20).alias("rolling_high_20"),
+                pl.col("low").rolling_min(20, min_samples=20).alias("rolling_low_20"),
+                pl.col("log_ret").rolling_std(20, min_samples=20).alias("vol_20"),
+                pl.col("log_ret").rolling_std(60, min_samples=60).alias("vol_60"),
                 pl.col("log_ret").rolling_skew(20, bias=False, min_samples=20).alias("returns_skew_20"),
-                pl.col("log_ret").rolling_mean(20, min_periods=20).alias("return_mean_20"),
-                pl.col("log_ret").rolling_std(20, min_periods=20).alias("return_std_20"),
-                pl.col("log_ret").rolling_mean(60, min_periods=60).alias("return_mean_60"),
-                pl.col("log_ret").rolling_std(60, min_periods=60).alias("return_std_60"),
-                pl.col("macd_hist").rolling_mean(20, min_periods=20).alias("macd_hist_mean_20"),
-                pl.col("macd_hist").rolling_std(20, min_periods=20).alias("macd_hist_std_20"),
-                pl.col("tr").rolling_mean(14, min_periods=14).alias("atr14"),
+                pl.col("log_ret").rolling_mean(20, min_samples=20).alias("return_mean_20"),
+                pl.col("log_ret").rolling_std(20, min_samples=20).alias("return_std_20"),
+                pl.col("log_ret").rolling_mean(60, min_samples=60).alias("return_mean_60"),
+                pl.col("log_ret").rolling_std(60, min_samples=60).alias("return_std_60"),
+                pl.col("macd_hist").rolling_mean(20, min_samples=20).alias("macd_hist_mean_20"),
+                pl.col("macd_hist").rolling_std(20, min_samples=20).alias("macd_hist_std_20"),
+                pl.col("tr").rolling_mean(14, min_samples=14).alias("atr14"),
                 pl.col("close").cum_max().alias("peak"),
-                pl.col("trades_count").cast(pl.Float64).rolling_mean(20, min_periods=20).alias("tc_mean_20"),
-                pl.col("trades_count").cast(pl.Float64).rolling_std(20, min_periods=20).alias("tc_std_20"),
+                pl.col("trades_count").cast(pl.Float64).rolling_mean(20, min_samples=20).alias("tc_mean_20"),
+                pl.col("trades_count").cast(pl.Float64).rolling_std(20, min_samples=20).alias("tc_std_20"),
             ]
         )
 
@@ -236,9 +234,7 @@ class CryptoHistory:
                 .otherwise(np.nan)
                 .alias("atr_ratio"),
                 pl.when(pl.col("macd_hist_std_20") > 0)
-                .then(
-                    (pl.col("macd_hist") - pl.col("macd_hist_mean_20")) / pl.col("macd_hist_std_20")
-                )
+                .then((pl.col("macd_hist") - pl.col("macd_hist_mean_20")) / pl.col("macd_hist_std_20"))
                 .otherwise(np.nan)
                 .alias("macd_hist_zscore_20"),
             ]
@@ -289,27 +285,21 @@ class CryptoHistory:
                 (pl.col("rsi_14") - pl.col("rsi_14").shift(5)).alias("rsi_change_5"),
                 (pl.col("macd_hist") - pl.col("macd_hist").shift(1)).alias("macd_hist_change_1"),
                 (pl.col("macd_hist") - pl.col("macd_hist").shift(5)).alias("macd_hist_change_5"),
-                pl.col("bb_width").rolling_mean(20, min_periods=20).alias("bb_width_mean_20"),
-                pl.col("bb_width").rolling_std(20, min_periods=20).alias("bb_width_std_20"),
+                pl.col("bb_width").rolling_mean(20, min_samples=20).alias("bb_width_mean_20"),
+                pl.col("bb_width").rolling_std(20, min_samples=20).alias("bb_width_std_20"),
                 (pl.col("bb_width") - pl.col("bb_width").shift(1)).alias("bb_width_change"),
                 (pl.col("bb_pct") - pl.col("bb_pct").shift(1)).alias("bb_pct_change"),
-                (pl.col("taker_buy_vol_ratio") - pl.col("taker_buy_vol_ratio").shift(1)).alias(
-                    "buy_pressure_change"
-                ),
+                (pl.col("taker_buy_vol_ratio") - pl.col("taker_buy_vol_ratio").shift(1)).alias("buy_pressure_change"),
                 pl.when(pl.col("trades_count").cast(pl.Float64).shift(1) > 0)
-                .then(
-                    pl.col("trades_count").cast(pl.Float64) / pl.col("trades_count").cast(pl.Float64).shift(1) - 1
-                )
+                .then(pl.col("trades_count").cast(pl.Float64) / pl.col("trades_count").cast(pl.Float64).shift(1) - 1)
                 .otherwise(np.nan)
                 .alias("trade_count_change"),
                 pl.when(pl.col("tc_std_20") > 0)
-                .then(
-                    (pl.col("trades_count").cast(pl.Float64) - pl.col("tc_mean_20")) / pl.col("tc_std_20")
-                )
+                .then((pl.col("trades_count").cast(pl.Float64) - pl.col("tc_mean_20")) / pl.col("tc_std_20"))
                 .otherwise(np.nan)
                 .alias("trade_count_zscore_20"),
-                pl.col("avg_trade_size").rolling_mean(20, min_periods=20).alias("avg_trade_mean_20"),
-                pl.col("avg_trade_size").rolling_std(20, min_periods=20).alias("avg_trade_std_20"),
+                pl.col("avg_trade_size").rolling_mean(20, min_samples=20).alias("avg_trade_mean_20"),
+                pl.col("avg_trade_size").rolling_std(20, min_samples=20).alias("avg_trade_std_20"),
                 (pl.col("drawdown") - pl.col("drawdown").shift(1)).alias("drawdown_change"),
             ]
         )

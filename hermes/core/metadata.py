@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 
 class ColumnMetadata(BaseModel):
-
     name: str
     dtype: str
     null_count: int = 0
@@ -16,14 +15,12 @@ class ColumnMetadata(BaseModel):
 
 
 class QualityInfo(BaseModel):
-
     completeness: float = 0.0
     duplicate_count: int = 0
     anomaly_count: int = 0
 
 
 class MetaData(BaseModel):
-
     row_count: int = 0
     column_count: int = 0
     columns: list[ColumnMetadata] = []

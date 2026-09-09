@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 
 class Provenance(BaseModel):
-
     source: str = ""
     endpoint: str | None = None
     retrieved_at: datetime | None = None

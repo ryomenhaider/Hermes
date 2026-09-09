@@ -254,10 +254,10 @@ countries: list[str] = [
 
 
 def iso3_to_iso2(iso3_code: str) -> str:
-    try:
-        return pycountry.countries.get(alpha_3=iso3_code.upper()).alpha_2
-    except AttributeError:
+    result = pycountry.countries.get(alpha_3=iso3_code.upper())
+    if result is None:
         return "Not Found"
+    return result.alpha_2
 
 
 def check_iso3(code: str) -> None:
