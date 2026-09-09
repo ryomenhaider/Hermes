@@ -1,7 +1,7 @@
-import pandas as pd
+import polars as pl
 
 
-def normalize_history(df: pd.DataFrame) -> pd.DataFrame:
+def normalize_history(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 

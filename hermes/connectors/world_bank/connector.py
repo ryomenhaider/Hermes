@@ -4,7 +4,7 @@ from datetime import timedelta
 from functools import partial
 
 import aiohttp
-import pandas as pd
+import polars as pl
 
 from hermes.acquisition.cache import RawCache
 from hermes.connectors.world_bank.mappings import WORLD_BANK_BASE_URL
@@ -28,7 +28,7 @@ class World_bank:
         page: int = 1,
         timeout: float = 30.0,
         retries: int = 3,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         url = f"{self.url}/country/{country_code}/indicator/{indicator_code}"
         params = {
             "per_page": per_page,
@@ -56,7 +56,16 @@ class World_bank:
                     raise
         if len(r) < 2 or not r[1]:
             logger.info(f"No data: country={country_code}, indicator={indicator_code}")
-            return pd.DataFrame(columns=["date", "indicator_id", "indicator_name", "country", "value", "source"])
+            return pl.DataFrame(
+                schema={
+                    "date": pl.String,
+                    "indicator_id": pl.String,
+                    "indicator_name": pl.String,
+                    "country": pl.String,
+                    "value": pl.String,
+                    "source": pl.String,
+                }
+            )
 
         _, records = r[0], r[1]
 
@@ -73,7 +82,7 @@ class World_bank:
         timeout: float = 30.0,
         retries: int = 3,
         force: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         cache_params = {
             "country": country_code,
             "indicator": indicator_code,

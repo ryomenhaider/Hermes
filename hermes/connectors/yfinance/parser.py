@@ -1,9 +1,10 @@
 import pandas as pd
+import polars as pl
 
 
-def history_to_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+def history_to_dataframe(df: pd.DataFrame) -> pl.DataFrame:
     if df is None or df.empty:
-        return pd.DataFrame()
+        return pl.DataFrame()
 
     df = df.reset_index()
     rename = {}
@@ -30,7 +31,7 @@ def history_to_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop_duplicates(subset=["timestamp_ms"], keep="first")
     df = df.sort_values("timestamp_ms").reset_index(drop=True)
 
-    return df
+    return pl.from_pandas(df)
 
 
 __all__ = ["history_to_dataframe"]

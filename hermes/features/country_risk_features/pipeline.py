@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-import pandas as pd
+import polars as pl
 
 from hermes.entities.countries import check_iso3
 from hermes.features.country_risk_features.economic import economic_features
@@ -26,6 +26,16 @@ async def _await_group(fns: dict[str, Callable[..., Any]]) -> dict[str, Any]:
 
     values = await asyncio.gather(*(_safe_call(f) for f in fns.values()))
     return dict(zip(fns.keys(), values))
+
+
+def _normalize_key(df: pl.DataFrame, key_col: str) -> pl.DataFrame:
+    """Force the panel key to a consistent Date on Jan 1 for year-like columns."""
+    dtype = df.schema[key_col]
+    if dtype == pl.Date:
+        return df
+    if dtype == pl.Datetime:
+        return df.with_columns(pl.col(key_col).cast(pl.Date).alias(key_col))
+    return df.with_columns(pl.col(key_col).cast(pl.Utf8).str.to_date("%Y").alias(key_col))
 
 
 class pipeline:
@@ -218,7 +228,7 @@ class pipeline:
             },
         }
 
-    async def build_training_panel(self, fns, countries):
+    async def build_training_panel(self, fns, countries) -> pl.DataFrame:
         panels = []
 
         for country in countries:
@@ -227,8 +237,9 @@ class pipeline:
             for fn in fns:
                 try:
                     series = await fn(country, mode="ML")
-                    if isinstance(series, pd.Series) and not series.empty:
-                        series = series[~series.index.duplicated(keep="first")]
+                    if isinstance(series, pl.DataFrame) and not series.is_empty():
+                        key = series.columns[0]
+                        series = series.unique(subset=[key], keep="first")
                         series_dict[fn.__name__] = series
                 except Exception as e:
                     logger.warning(f"{fn.__name__} failed for {country}: {e}")
@@ -237,13 +248,27 @@ class pipeline:
             if not series_dict:
                 continue
 
-            country_df = pd.DataFrame(series_dict)
-            country_df["country_iso3"] = country
-            country_df = country_df.reset_index().rename(columns={"index": "date"})
-            country_df = country_df.set_index(["country_iso3", "date"])
+            aligned: list[pl.DataFrame] = []
+            for name, frame in series_dict.items():
+                key = frame.columns[0]
+                value_cols = [c for c in frame.columns if c != key]
+                frame = frame.rename({key: "date"})
+                for i, vc in enumerate(value_cols):
+                    new_name = name if len(value_cols) == 1 else f"{name}_{vc}"
+                    if new_name != vc:
+                        frame = frame.rename({vc: new_name})
+                frame = _normalize_key(frame, "date")
+                frame = frame.sort("date").select(["date", *[c for c in frame.columns if c != "date"]])
+                aligned.append(frame)
+
+            country_df = aligned[0]
+            for frame in aligned[1:]:
+                country_df = country_df.join(frame, on="date", how="outer_coalesce")
+            country_df = country_df.with_columns(pl.lit(country).alias("country_iso3"))
+            country_df = country_df.select(["country_iso3", "date", *[c for c in country_df.columns if c not in ("country_iso3", "date")]])
             panels.append(country_df)
 
         if not panels:
-            return pd.DataFrame()
+            return pl.DataFrame()
 
-        return pd.concat(panels).sort_index()
+        return pl.concat(panels, how="vertical").sort(["country_iso3", "date"])

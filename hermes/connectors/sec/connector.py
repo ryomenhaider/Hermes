@@ -4,7 +4,7 @@ from datetime import timedelta
 from functools import partial
 
 import aiohttp
-import pandas as pd
+import polars as pl
 
 from hermes.acquisition.cache import RawCache
 from hermes.entities.companies import get_cik
@@ -52,7 +52,7 @@ class SECEDGAR:
         timeout: float = 30.0,
         retries: int = 3,
         force: bool = False,
-    ) -> pd.DataFrame | dict:
+    ) -> pl.DataFrame | dict:
         cache_params = {
             "company": symbol,
         }

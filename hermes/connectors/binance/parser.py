@@ -1,13 +1,13 @@
-import pandas as pd
+import polars as pl
 
 
-def klines_to_dataframe(all_candles: list) -> pd.DataFrame:
+def klines_to_dataframe(all_candles: list) -> pl.DataFrame:
     if not all_candles:
-        return pd.DataFrame()
+        return pl.DataFrame()
 
-    df = pd.DataFrame(
+    df = pl.DataFrame(
         all_candles,
-        columns=[
+        schema=[
             "open_time",
             "open",
             "high",
@@ -33,12 +33,12 @@ def klines_to_dataframe(all_candles: list) -> pd.DataFrame:
         "taker_buy_volume",
         "taker_buy_quote_volume",
     ]:
-        df[col] = df[col].astype(float)
+        df = df.with_columns(pl.col(col).cast(pl.Float64))
 
-    df["trades_count"] = df["trades_count"].astype(int)
-    df = df.drop(columns=["ignore"])
-    df = df.drop_duplicates(subset=["open_time"], keep="first")
-    df = df.sort_values("open_time").reset_index(drop=True)
+    df = df.with_columns(pl.col("trades_count").cast(pl.Int64))
+    df = df.drop("ignore")
+    df = df.unique(subset=["open_time"], keep="first")
+    df = df.sort("open_time")
 
     return df
 

@@ -1,13 +1,17 @@
 import logging
 from typing import Literal
 
-import pandas as pd
+import polars as pl
 
 from hermes.connectors.public_data import PUBLIC_DATASET
 from hermes.features.country_risk_features.utils import adjust_year_range
 from hermes.features.decorator import feature
 
 logger = logging.getLogger(__name__)
+
+
+def _year_int(df, year_col: str) -> pl.DataFrame:
+    return df.with_columns(pl.col(year_col).dt.year().alias(year_col))
 
 
 class security_features:
@@ -20,17 +24,16 @@ class security_features:
         deps=["sipri:milex"],
         compute="military_spending_gdp from the SIPRI dataset",
     )
-    async def military_spending_gdp(self, country_code: str, mode: Literal["F", "ML"] = "F") -> float:
+    async def military_spending_gdp(self, country_code: str, mode: Literal["F", "ML"] = "F") -> float | pl.DataFrame:
         data = await self._data.fetch_sipri(country=country_code)
-        data["year"] = pd.to_datetime(data["year"]).dt.year
+        data = _year_int(data, "year")
 
         if mode == "F":
-            data = data.sort_values("year", ascending=False)
-            return data["value"].iloc[0]
+            data = data.sort("year", descending=True)
+            return float(data["value"].item(0))
         if mode == "ML":
             data = adjust_year_range(data, "year", 2000, 2025, fill_method="ffill")
-            data = data.set_index("year")
-            return data["value"]
+            return data.select(["year", "value"])
 
     @feature(
         name="military_spending_growth_yoy",
@@ -40,26 +43,25 @@ class security_features:
     )
     async def military_spending_growth_yoy(
         self, country_code: str, mode: Literal["F", "ML"] = "F"
-    ) -> float | pd.Series:
+    ) -> float | pl.DataFrame:
 
         data = await self._data.fetch_sipri(country=country_code)
-        data = data.copy()
+        data = _year_int(data, "year")
+        data = data.sort("year", descending=True)
 
-        data["year"] = pd.to_datetime(data["year"], format="%Y").dt.year
-        data = data.set_index("year").sort_index(ascending=False)
-
-        yoy = data["value"].pct_change(periods=1) * 100
+        yoy = data.with_columns((pl.col("value").pct_change() * 100).alias("value_yoy")).drop("value")
 
         if mode == "F":
-            latest = yoy.dropna()
-            if latest.empty:
+            latest = yoy.filter(pl.col("value_yoy").is_not_null()).sort("year", descending=True)
+            if latest.is_empty():
                 return float("nan")
-            return float(latest.iloc[1])
+            if latest.height < 2:
+                return float("nan")
+            return float(latest["value_yoy"].item(1))
         if mode == "ML":
-            yoy = yoy.reset_index()
+            yoy = yoy.with_columns(pl.col("value_yoy").alias("value")).drop("value_yoy")
             yoy = adjust_year_range(yoy, "year", 2000, 2025, fill_method="ffill")
-            yoy = yoy.set_index("year")
-            return yoy["value"]
+            return yoy.select(["year", "value"])
 
         raise ValueError(f"Unsupported mode: {mode!r}")
 
@@ -105,14 +107,13 @@ class security_features:
         deps=["nato:membership"],
         compute="nato_member from the NATO dataset",
     )
-    async def nato_member(self, country_code: str, mode: Literal["F", "ML"] = "F") -> bool:
+    async def nato_member(self, country_code: str, mode: Literal["F", "ML"] = "F") -> bool | pl.DataFrame:
         data = await self._data.fetch_nato(country=country_code)
-        data["Year"] = pd.to_datetime(data["Year"]).dt.year
+        data = _year_int(data, "Year")
 
         if mode == "F":
-            data = data.sort_values("Year", ascending=False)
-            return bool(data["NATO Member"].iloc[0])
+            data = data.sort("Year", descending=True)
+            return bool(data["NATO Member"].item(0))
         elif mode == "ML":
             data = adjust_year_range(data, "Year", 2000, 2025, fill_method="ffill")
-            data = data.set_index("Year")
-            return data["NATO Member"]
+            return data.select(["Year", "NATO Member"])

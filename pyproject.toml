@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Hermes Non-Commercial License" }
 authors = [
-    { name = "Haider Ali" },
+    { name = "Haider Ali & Hermes Team" },
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -20,12 +20,11 @@ classifiers = [
 dependencies = [
     "aiohttp>=3.14.3",
     "fastparquet>=2026.5.0",
-    "pandas>=3.0.3",
+    "polars>=1.44.1",
     "pyarrow>=25.0.0",
-    "pycountry>=26.2.16",
     "pydantic",
-    "sdmx>=0.2.10",
-    "sec-cik-mapper>=2.1.0",
+    "pycountry>=24.6.1",
+    "sec-cik-mapper>=1.1.23",
     "yfinance>=1.6.0",
 ]
 

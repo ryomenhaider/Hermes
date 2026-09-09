@@ -1,5 +1,10 @@
+from typing import Literal
+
 from hermes.core.errors import ConfigError
 
+API_SOURCES = [
+    'fred', 'opensanctions', 'newsdata'
+]
 
 class HermesConfig:
 
@@ -8,19 +13,19 @@ class HermesConfig:
         self._settings: dict[str, str] = {}
 
     def set_api_key(self, source: str, key: str) -> None:
-        ...
+        self._api_keys[source] = key
 
     def get_api_key(self, source: str) -> str | None:
-        ...
+        return self._api_keys[source]
 
-    def set(self, key: str, value: str) -> None:
-        ...
-
-    def get(self, key: str, default: str | None = None) -> str | None:
-        ...
-
-    def require_api_key(self, source: str) -> str:
-        ...
+    def requires_api_key(self, source: Literal[API_SOURCES]) -> bool:
+        
+        req: list[str] = API_SOURCES
+        
+        if source in req:
+            return True
+        else:
+            return False
 
     def resolve_config(self, source: str) -> dict[str, str]:
         ...
