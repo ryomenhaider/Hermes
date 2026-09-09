@@ -22,9 +22,7 @@ def _year_date(df, date_col: str = "date") -> pl.DataFrame:
 
 def _year_end(df, date_col: str = "date") -> pl.DataFrame:
     """Anchor a year-string column (e.g. "2023") to Dec 31 of that year as a date."""
-    return df.with_columns(
-        (pl.col(date_col).cast(pl.Utf8) + "-12-31").str.to_date("%Y-%m-%d").alias(date_col)
-    )
+    return df.with_columns((pl.col(date_col).cast(pl.Utf8) + "-12-31").str.to_date("%Y-%m-%d").alias(date_col))
 
 
 class economic_features:
@@ -88,7 +86,9 @@ class economic_features:
         deps=["world_bank:NV.IND.MANF.KD.ZG"],
         compute="industrial_production_yoy from the World Bank data",
     )
-    async def industrial_production_yoy(self, country_code: str, mode: Literal["F", "ML"] = "F") -> float | pl.DataFrame:
+    async def industrial_production_yoy(
+        self, country_code: str, mode: Literal["F", "ML"] = "F"
+    ) -> float | pl.DataFrame:
         data = await self.wb.fetch(country_code=country_code, indicator_code="NV.IND.MANF.KD.ZG")
 
         data = check_empty(mode=mode, country=country_code, data=data)
@@ -143,21 +143,15 @@ class economic_features:
         min_date = data["date"].min()
         max_date = data["date"].max()
         grid_dates = [
-            date(year, month, 1)
-            for year in range(min_date.year, max_date.year + 1)
-            for month in range(1, 13)
+            date(year, month, 1) for year in range(min_date.year, max_date.year + 1) for month in range(1, 13)
         ]
         grid = pl.DataFrame({"date": grid_dates}).sort("date")
         monthly = grid.join(data.select(["date", "value"]), on="date", how="left")
         monthly = monthly.with_columns(pl.col("value").interpolate())
-        monthly = monthly.with_columns(
-            pl.col("value")
-            .pct_change(12)
-            .alias("yoy_change")
+        monthly = monthly.with_columns(pl.col("value").pct_change(12).alias("yoy_change"))
+        monthly = monthly.with_columns(pl.col("yoy_change").rolling_std(12).alias("inflation_volatility_12m")).drop(
+            "yoy_change"
         )
-        monthly = monthly.with_columns(
-            pl.col("yoy_change").rolling_std(12).alias("inflation_volatility_12m")
-        ).drop("yoy_change")
 
         result = monthly.filter(pl.col("inflation_volatility_12m").is_not_null()).sort("date", descending=True)
 
@@ -254,7 +248,9 @@ class economic_features:
         deps=["world_bank:SL.TLF.CACT.ZS"],
         compute="labor_force_participation from the World Bank data",
     )
-    async def labor_force_participation(self, country_code: str, mode: Literal["F", "ML"] = "F") -> float | pl.DataFrame:
+    async def labor_force_participation(
+        self, country_code: str, mode: Literal["F", "ML"] = "F"
+    ) -> float | pl.DataFrame:
         data = await self.wb.fetch(country_code=country_code, indicator_code="SL.TLF.CACT.ZS")
 
         data = check_empty(mode=mode, country=country_code, data=data)
@@ -274,7 +270,9 @@ class economic_features:
         deps=["world_bank:BN.CAB.XOKA.GD.ZS"],
         compute="current_account_gdp_ratio from the World Bank data",
     )
-    async def current_account_gdp_ratio(self, country_code: str, mode: Literal["F", "ML"] = "F") -> float | pl.DataFrame:
+    async def current_account_gdp_ratio(
+        self, country_code: str, mode: Literal["F", "ML"] = "F"
+    ) -> float | pl.DataFrame:
         data = await self.wb.fetch(country_code=country_code, indicator_code="BN.CAB.XOKA.GD.ZS")
 
         data = check_empty(mode=mode, country=country_code, data=data)
@@ -294,7 +292,9 @@ class economic_features:
         deps=["world_bank:FI.RES.TOTL.MO"],
         compute="fx_reserves_months_import from the World Bank data",
     )
-    async def fx_reserves_months_import(self, country_code: str, mode: Literal["F", "ML"] = "F") -> float | pl.DataFrame:
+    async def fx_reserves_months_import(
+        self, country_code: str, mode: Literal["F", "ML"] = "F"
+    ) -> float | pl.DataFrame:
         data = await self.wb.fetch(country_code=country_code, indicator_code="FI.RES.TOTL.MO")
 
         data = check_empty(mode=mode, country=country_code, data=data)

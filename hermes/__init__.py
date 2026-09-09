@@ -1,25 +1,25 @@
 from hermes.api.acquire import fetch, ingest, read, sync
-from hermes.api.data import parse, normalize, validate, transform, profile, inspect
-from hermes.api.datasets import list_datasets, get_dataset, search_datasets
-from hermes.api.entities import resolve_entity, resolve_country, resolve_company
-from hermes.api.schemas import get_schema, register_schema, compare_schema, migrate
-from hermes.api.storage import save, load, query, materialize
-from hermes.core.dataset import Dataset
+from hermes.api.data import inspect, normalize, parse, profile, transform, validate
+from hermes.api.datasets import get_dataset, list_datasets, search_datasets
+from hermes.api.entities import resolve_company, resolve_country, resolve_entity
+from hermes.api.schemas import compare_schema, get_schema, migrate, register_schema
+from hermes.api.storage import load, materialize, query, save
 from hermes.core.config import configure, get_config
-from hermes.core.result import Result
+from hermes.core.dataset import Dataset
 from hermes.core.errors import (
-    HermesError,
     AcquisitionError,
-    ParseError,
-    SchemaError,
-    NormalizationError,
-    ValidationError,
-    StorageError,
-    QueryError,
+    AuthenticationError,
     ConfigError,
     ConnectorNotFoundError,
-    AuthenticationError,
+    HermesError,
+    NormalizationError,
+    ParseError,
+    QueryError,
+    SchemaError,
+    StorageError,
+    ValidationError,
 )
+from hermes.core.result import Result
 
 __all__ = [
     # Fetching

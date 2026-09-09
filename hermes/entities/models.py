@@ -2,7 +2,6 @@ from pydantic import BaseModel
 
 
 class Entity(BaseModel):
-
     id: str
     name: str
     entity_type: str
@@ -13,7 +12,6 @@ class Entity(BaseModel):
 
 
 class EntityMatch(BaseModel):
-
     entity: Entity
     score: float
     match_type: str

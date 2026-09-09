@@ -4,15 +4,11 @@ from hermes.entities.models import Entity, EntityMatch
 
 
 class Resolver(ABC):
+    @abstractmethod
+    def resolve(self, query: str) -> Entity | None: ...
 
     @abstractmethod
-    def resolve(self, query: str) -> Entity | None:
-        ...
+    def identify(self, data: object) -> object: ...
 
     @abstractmethod
-    def identify(self, data: object) -> object:
-        ...
-
-    @abstractmethod
-    def match(self, query: str, threshold: float = 0.8) -> list[EntityMatch]:
-        ...
+    def match(self, query: str, threshold: float = 0.8) -> list[EntityMatch]: ...

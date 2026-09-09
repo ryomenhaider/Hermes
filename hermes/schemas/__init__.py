@@ -1,4 +1,4 @@
-from hermes.schemas.base import Schema, FieldDef
+from hermes.schemas.base import FieldDef, Schema
 from hermes.schemas.registry import SchemaRegistry
 
 __all__ = [

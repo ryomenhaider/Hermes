@@ -25,7 +25,7 @@ def export(data: pl.DataFrame, filetype: str = "csv", loc: Path | str = "data/",
         if filetype == "csv":
             data.write_csv(full_path)
         elif filetype == "json":
-            data.write_json(full_path, row_oriented=True)
+            data.write_json(full_path)
         elif filetype == "parquet":
             data.write_parquet(full_path)
         else:

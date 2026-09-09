@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 
 
 class LineageStep(BaseModel):
-
     operation: str
     input_ref: str | None = None
     output_ref: str | None = None
@@ -14,14 +13,13 @@ class LineageStep(BaseModel):
 
 
 class Lineage(BaseModel):
-
     steps: list[LineageStep] = []
 
     def add_step(self, step: LineageStep) -> None:
-        ...
+        raise NotImplementedError()
 
     def trace(self) -> list[LineageStep]:
-        ...
+        raise NotImplementedError()
 
     def last_operation(self) -> LineageStep | None:
-        ...
+        raise NotImplementedError()

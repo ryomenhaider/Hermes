@@ -172,7 +172,7 @@ class CompanyFiling:
                 logger.warning(f"Failed to fetch SEC data for {symbol}")
                 continue
 
-            if raw is None or "facts" not in raw:
+            if raw is None or not isinstance(raw, dict) or "facts" not in raw:
                 continue
 
             facts = raw["facts"].get("us-gaap")
@@ -222,11 +222,7 @@ class CompanyFiling:
             current = col_expr
             prev_val = current.gather(pl.col("_prev_idx"))
             return (
-                pl.when(
-                    pl.col("_prev_idx").is_not_null()
-                    & prev_val.is_not_null()
-                    & (prev_val != 0)
-                )
+                pl.when(pl.col("_prev_idx").is_not_null() & prev_val.is_not_null() & (prev_val != 0))
                 .then((current - prev_val) / prev_val.abs())
                 .otherwise(np.nan)
             )

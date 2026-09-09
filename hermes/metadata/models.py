@@ -1,9 +1,9 @@
-from pydantic import BaseModel
 from typing import Any
+
+from pydantic import BaseModel
 
 
 class ColumnMetadata(BaseModel):
-
     name: str
     dtype: str
     null_count: int = 0
@@ -14,7 +14,6 @@ class ColumnMetadata(BaseModel):
 
 
 class DatasetMetadata(BaseModel):
-
     row_count: int = 0
     column_count: int = 0
     columns: list[ColumnMetadata] = []

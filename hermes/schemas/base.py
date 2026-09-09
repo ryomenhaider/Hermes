@@ -2,7 +2,6 @@ from pydantic import BaseModel
 
 
 class FieldDef(BaseModel):
-
     name: str
     dtype: str
     nullable: bool = True
@@ -13,18 +12,17 @@ class FieldDef(BaseModel):
 
 
 class Schema(BaseModel):
-
     name: str
     version: str
     fields: list[FieldDef] = []
     primary_keys: list[str] = []
     description: str | None = None
 
-    def validate(self, data: object) -> object:
-        ...
+    def validate_data(self, data: object) -> None:
+        raise NotImplementedError()
 
-    def compatibility(self, other: "Schema") -> object:
-        ...
+    def compatibility(self, other: "Schema") -> None:
+        raise NotImplementedError()
 
     def field_names(self) -> list[str]:
-        ...
+        raise NotImplementedError()

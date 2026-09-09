@@ -218,10 +218,7 @@ dataset.save("dataset")
 Hermes provides a common interface for acquiring external data.
 
 ```python
-data = hr.fetch(
-    "world_bank",
-    dataset="gdp"
-)
+data = hr.fetch("world_bank", dataset="gdp")
 ```
 
 The source can eventually be anything supported by a Hermes connector.
@@ -459,12 +456,7 @@ data = data.transform(my_function)
 Complex transformations can be composed into pipelines.
 
 ```python
-data = (
-    data
-    .transform(clean_dates)
-    .transform(calculate_features)
-    .transform(remove_invalid_records)
-)
+data = data.transform(clean_dates).transform(calculate_features).transform(remove_invalid_records)
 ```
 
 Hermes does not try to become another dataframe library.
@@ -704,12 +696,7 @@ import hermes as hr
 
 dataset = hr.fetch("source")
 
-dataset = (
-    dataset
-    .parse()
-    .normalize()
-    .validate()
-)
+dataset = dataset.parse().normalize().validate()
 
 dataset.profile()
 

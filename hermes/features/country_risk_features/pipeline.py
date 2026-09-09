@@ -265,7 +265,9 @@ class pipeline:
             for frame in aligned[1:]:
                 country_df = country_df.join(frame, on="date", how="outer_coalesce")
             country_df = country_df.with_columns(pl.lit(country).alias("country_iso3"))
-            country_df = country_df.select(["country_iso3", "date", *[c for c in country_df.columns if c not in ("country_iso3", "date")]])
+            country_df = country_df.select(
+                ["country_iso3", "date", *[c for c in country_df.columns if c not in ("country_iso3", "date")]]
+            )
             panels.append(country_df)
 
         if not panels:
