@@ -1,6 +1,6 @@
 [project]
 name = "hermes-plt"
-version = "0.2.15"
+version = "0.2.16"
 description = "Foundational intelligence data platform for acquiring, validating, normalizing, storing, and serving intelligence datasets"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,10 +26,19 @@ dependencies = [
     "pycountry>=24.6.1",
     "sec-cik-mapper>=1.1.23",
     "yfinance>=1.6.0",
+    "typer>=0.27.2",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["hermes"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/hermes",
+    "/README.md",
+    "/LICENSE.md",
+    "/pyproject.toml"
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -89,3 +98,6 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = "hermes.connectors.*"
 ignore_errors = true
+
+[project.scripts]
+hermes = "hermes.cli:app"

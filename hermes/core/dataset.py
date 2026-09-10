@@ -11,6 +11,9 @@ from hermes.core.lineage import Lineage
 from hermes.core.metadata import MetaData
 from hermes.core.provenance import Provenance
 from hermes.core.versioning import DataVersion
+from hermes.core.errors import HermesError
+
+from hermes.api.data import profile
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,9 @@ class Dataset(BaseModel):
         raise NotImplementedError()
 
     def profile(self) -> dict:
-        raise NotImplementedError()
+        if self.data == None:
+            raise HermesError('Load The Data First')
+        return profile(self.data)
 
     def save(self, path: str, format: str = "parquet") -> None:
         raise NotImplementedError()
