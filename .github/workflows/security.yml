@@ -61,10 +61,7 @@ jobs:
           pip install pip-audit
 
       - name: Run pip-audit
-        run: |
--          pip-audit --format json --output pip-audit-report.json || true
--          pip-audit
-+          pip-audit --format json --output pip-audit-report.json
+        run: pip-audit --format json --output pip-audit-report.json
 
       - name: Upload pip-audit report
         if: always()
