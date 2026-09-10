@@ -10,4 +10,6 @@ class DataVersion(BaseModel):
     parent_version: str | None = None
 
     def is_compatible(self, other: "DataVersion") -> bool:
-        raise NotImplementedError()
+        if self.schema_hash is None or other.schema_hash is None:
+            return False
+        return self.schema_hash == other.schema_hash

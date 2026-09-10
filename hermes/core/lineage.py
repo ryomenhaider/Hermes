@@ -16,10 +16,12 @@ class Lineage(BaseModel):
     steps: list[LineageStep] = []
 
     def add_step(self, step: LineageStep) -> None:
-        raise NotImplementedError()
+        self.steps.append(step)
 
     def trace(self) -> list[LineageStep]:
-        raise NotImplementedError()
+        return self.steps
 
     def last_operation(self) -> LineageStep | None:
-        raise NotImplementedError()
+        if len(self.steps) == 0:
+            return None
+        return self.steps[-1]
