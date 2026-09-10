@@ -1,19 +1,37 @@
-def main() -> None: ...
+import typer
+from pathlib import Path
+from hermes.api.data import profile
 
 
-def cmd_fetch(args: object) -> None: ...
+app = typer.Typer(
+    name="hermes",
+    help="Foundational intelligence data platform.",
+    no_args_is_help=True,
+)
 
 
-def cmd_install(args: object) -> None: ...
+@app.command()
+def version():
+    typer.echo(f"Hermes v0.2.16")
 
 
-def cmd_list(args: object) -> None: ...
+@app.command()
+def info():
+    typer.echo(f"Hermes v0.2.16")
+    typer.echo("Foundational intelligence data platform")
 
+@app.command()
+def profile_data(
+    path: Path = typer.Argument(
+        help="Path to the dataset.",
+        exists=True,
+        readable=True,
+        resolve_path=True,
+    ),
+):
 
-def cmd_configure(args: object) -> None: ...
+    report = profile(path=path)
+    typer.echo(report)
 
-
-def cmd_info(args: object) -> None: ...
-
-
-def cmd_version(args: object) -> None: ...
+if __name__ == "__main__":
+    app()

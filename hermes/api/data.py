@@ -1,11 +1,12 @@
 import logging
 from datetime import UTC, datetime
 from typing import Any
+from pathlib import Path
 
 import polars as pl
 import polars.selectors as cs
 
-from hermes.core.metadata import ColumnMetadata, MetaData, QualityInfo
+from hermes.core.metadata import ColumnMetadata, MetaData, QualityInfo, InspectReport
 from hermes.core.result import Result
 
 logger = logging.getLogger(__name__)
@@ -19,28 +20,53 @@ def normalize(data: object, **kwargs: object) -> Result:
     raise NotImplementedError()
 
 
-def validate(data: object, contract: object | None = None) -> Result:
+def validate(
+    data: object, 
+    contract: object | None = None
+) -> Result:
+
     raise NotImplementedError()
 
 
-def transform(data: object, fn: object | None = None, **kwargs: object) -> Result:
+def transform(
+    data: object, 
+    fn: object | None = None, 
+    **kwargs: object
+) -> Result:
+
     raise NotImplementedError()
 
 
-def inspect(data: object) -> Result:
-    raise NotImplementedError()
+def inspect(data: pl.DataFrame) -> InspectReport:
+    cols = list(data.columns)
+    col_data = []
+    for col in cols:
+        col_data.append(
+            {f'{col}', f'{data[col].dtype}'}
+        )
+        
+    return InspectReport(
+        row_count=data.height,
+        column_count=data.width,
+        columns=col_data,
+
+    )
 
 
 def get_time_cols(data: pl.DataFrame) -> list[str]:
     time_cols = list(data.select(cs.temporal()).columns)
     if not time_cols:
-        raise ValueError("No Temporal Column Found")
+        logger.error("No Temporal Column Found")
+        return None
     return time_cols
 
 
 def get_freqs(data: pl.DataFrame) -> list[str]:
     time_cols = get_time_cols(data)
-
+    if not time_cols:
+        logger.error('No frequency found')
+        return None
+        
     cols = []
     for col in time_cols:
         freq = data[col].diff().mode().first()
@@ -49,24 +75,31 @@ def get_freqs(data: pl.DataFrame) -> list[str]:
     return cols
 
 
-def date_ranges(df: pl.DataFrame | pl.LazyFrame) -> list[dict[str, tuple[Any, Any]]]:
-    if isinstance(df, pl.LazyFrame):
-        df = df.collect()
-    time_cols = get_time_cols(df)
+def date_ranges(
+    data: pl.DataFrame | pl.LazyFrame
+) -> list[dict[str, tuple[Any, Any]]]:
 
+    if isinstance(data, pl.LazyFrame):
+        data = data.collect()
+    time_cols = get_time_cols(data)
+    
+    if not time_cols:
+        logger.error('no date found')
+        return None
+    
     bounds = []
     for col in time_cols:
-        bound = df.select(min=pl.col(col).min(), max=pl.col(col).max())
+        bound = data.select(min=pl.col(col).min(), max=pl.col(col).max())
         bounds.append({col: (bound["min"][0], bound["max"][0])})
 
     return bounds
 
 
-def anomaly_count(df: pl.DataFrame | pl.LazyFrame, threshold: float = 1.5) -> dict[str, int]:
-    if isinstance(df, pl.LazyFrame):
-        df = df.collect()
+def anomaly_count(data: pl.DataFrame | pl.LazyFrame, threshold: float = 1.5) -> dict[str, int]:
+    if isinstance(data, pl.LazyFrame):
+        data = data.collect()
 
-    num_cols = df.select(cs.numeric()).columns
+    num_cols = data.select(cs.numeric()).columns
     if not num_cols:
         return {}
 
@@ -82,69 +115,93 @@ def anomaly_count(df: pl.DataFrame | pl.LazyFrame, threshold: float = 1.5) -> di
         is_anomaly = (pl.col(col) < lower_bound) | (pl.col(col) > upper_bound)
         anomaly_exprs.append(is_anomaly.sum().alias(col))
 
-    anomaly_df = df.select(anomaly_exprs)
-    return anomaly_df.row(0, named=True)
+    anomaly_data = data.select(anomaly_exprs)
+    return anomaly_data.row(0, named=True)
 
 
-def profile(data: object, top_n: int = 10) -> MetaData:
-    if isinstance(data, pl.DataFrame):
-        df = data
-    elif isinstance(data, pl.LazyFrame):
-        df = data.collect()
+def profile(data: object | None = None, path: Path | None = None, source: str | None = None) -> MetaData:
+    if data is not None:
+        data = pl.DataFrame(data)
+    elif path:
+        path = Path(path)
+        if path.suffix.lower() == ".csv":
+            data = pl.read_csv(path)
+        elif path.suffix.lower() == ".parquet":
+            data = pl.read_parquet(path)
+        else:
+            raise ValueError(f"Unsupported file format: {path.suffix}")
     else:
-        df = pl.DataFrame(data)  # type: ignore[arg-type]
+        raise ValueError("Either data or path must be provided")
+
+    stats_df = data.select([
+        pl.all().null_count().name.suffix("_null_count"),
+        pl.all().n_unique().name.suffix("_unique_count"),
+        cs.numeric().min().cast(pl.Int64).name.suffix("_min"),
+        cs.numeric().max().cast(pl.Int64).name.suffix("_max"),
+        cs.numeric().mean().name.suffix("_mean"),
+        cs.numeric().median().name.suffix("_median"),
+        cs.numeric().std().name.suffix("_std"),
+    ])
+    stats = stats_df.row(0, named=True)
+
+    string_cols = data.select(cs.string()).columns
+    top_values_map = {}
+    
+    if string_cols:
+        top_df = data.select([
+            pl.col(c).value_counts(sort=True).head(5).name.suffix("_struct") 
+            for c in string_cols
+        ])
+        
+        for c in string_cols:
+            struct_list = top_df.get_column(f"{c}_struct").to_list()
+            top_values_map[c] = [
+                (item[c], item["count"]) for item in struct_list if item is not None
+            ]
 
     col_metadata = []
+    total_rows = len(data)
 
-    string_cols = df.select(cs.string()).columns
-
-    if not string_cols:
-        logger.warning("The Data doesnt Have any string cols, not top values will be shown")
-
-    for col in list(df.columns):
-        col_data = df[col]
-
-        top_values: list[tuple[Any, Any]] = []
-
-        if col in string_cols:
-            top_df = df[col].value_counts().sort(by="count", descending=True).head(top_n)
-            top_values = list(top_df.iter_rows())
-
+    for col in data.columns:
+        is_numeric = data.schema[col].is_numeric()
+        null_count = stats[f"{col}_null_count"]
+        
         col_metadata.append(
             ColumnMetadata(
                 name=col,
-                dtype=str(col_data.dtype),
-                null_count=col_data.null_count(),
-                null_ratio=col_data.null_count() / len(df),
-                unique_count=col_data.n_unique(),
-                min_value=col_data.min(),
-                max_value=col_data.max(),
-                mean=float(col_data.mean() or 0.0),  # type: ignore[arg-type]
-                median=float(col_data.median() or 0.0),  # type: ignore[arg-type]
-                std=float(col_data.std() or 0.0),  # type: ignore[arg-type]
-                top_values=top_values,
+                dtype=str(data.schema[col]),
+                null_count=null_count,
+                null_ratio=float(null_count / total_rows) if total_rows > 0 else 0.0,
+                unique_count=stats[f"{col}_unique_count"],
+                min_value=stats.get(f"{col}_min") if is_numeric else None,
+                max_value=stats.get(f"{col}_max") if is_numeric else None,
+                mean=stats.get(f"{col}_mean") if is_numeric else None,
+                median=stats.get(f"{col}_median") if is_numeric else None,
+                std=stats.get(f"{col}_std") if is_numeric else None,
+                top_values=top_values_map.get(col, []),
             )
         )
 
-    completeness_data = df.select(1.0 - pl.all().is_null().mean())
-
-    duplicated_ = df.select(total_dup=pl.all().is_first_distinct().not_().sum())
+    null_df = data.select(pl.all().is_null().mean())
+    completeness_map = null_df.select(pl.all().sub(1.0).abs()).row(0, named=True)
+    
+    duplicate_count = int(data.is_duplicated().sum())
 
     data_quality = QualityInfo(
-        completeness=completeness_data.row(0, named=True),
-        duplicate_count=duplicated_.item(),
-        anomaly_count=anomaly_count(df),
+        completeness=completeness_map,
+        duplicate_count=duplicate_count,
+        anomaly_count=anomaly_count(data),
     )
-    freq = get_freqs(df)[0]
-    date_range = date_ranges(df)[0]
+    _date_ranges = date_ranges(data)
+    _freq = get_freqs(data)
 
     return MetaData(
-        row_count=df.height,
-        column_count=df.width,
+        row_count=data.height,
+        column_count=data.width,
         columns=col_metadata,
-        date_range=date_range,
-        frequency=freq,
-        source="",
+        date_range=_date_ranges,
+        frequency=_freq,
+        source=source,
         retrieved_at=datetime.now(tz=UTC),
         quality=data_quality,
     )
