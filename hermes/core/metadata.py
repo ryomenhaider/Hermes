@@ -19,16 +19,16 @@ class ColumnMetadata(BaseModel):
 
 
 class QualityInfo(BaseModel):
-    completeness: float = 0.0
+    completeness: dict[str, float] = {}
     duplicate_count: int = 0
-    anomaly_count: int = 0
+    anomaly_count: dict[str, int] = {}
 
 
 class MetaData(BaseModel):
     row_count: int = 0
     column_count: int = 0
     columns: list[ColumnMetadata] = []
-    date_range: tuple[str, str] | None = None
+    date_range: dict[str, tuple[Any, Any]] | None = None
     frequency: str | None = None
     source: str | None = None
     retrieved_at: datetime | None = None
