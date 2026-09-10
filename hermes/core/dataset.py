@@ -99,7 +99,7 @@ class Dataset(BaseModel):
                 data = {}
 
                 for table in tables:
-                    data[table] = pl.read_database(query=f"SELECT * FROM {table}", connection=connection)  # noqa: S608
+                    data[table] = pl.read_database(query=f"SELECT * FROM {table}", connection=connection)  # noqa: S608  # nosec B608
 
                 data = pl.DataFrame(data)
             finally:
