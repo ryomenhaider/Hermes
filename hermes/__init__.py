@@ -1,5 +1,5 @@
 from hermes.api.acquire import fetch, ingest, read, sync
-from hermes.api.data import inspect, normalize, parse, profile, transform, validate
+from hermes.api.data import inspect, normalize, parse, profile, transform, validate, get_freqs, date_ranges, anomaly_count
 from hermes.api.datasets import get_dataset, list_datasets, search_datasets
 from hermes.api.entities import resolve_company, resolve_country, resolve_entity
 from hermes.api.schemas import compare_schema, get_schema, migrate, register_schema
@@ -34,6 +34,9 @@ __all__ = [
     "transform",
     "profile",
     "inspect",
+    "get_freqs",
+    "date_range",
+    "anomaly_count"
     # Datasets
     "Dataset",
     "list_datasets",

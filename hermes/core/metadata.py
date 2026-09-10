@@ -12,6 +12,10 @@ class ColumnMetadata(BaseModel):
     unique_count: int = 0
     min_value: Any = None
     max_value: Any = None
+    mean: float = 0
+    median: float = 0
+    std: float = 0
+    top_values: list[tuple[Any, Any]]
 
 
 class QualityInfo(BaseModel):
