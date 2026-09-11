@@ -1,12 +1,13 @@
 import logging
 from datetime import UTC, datetime
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import polars.selectors as cs
 
-from hermes.core.metadata import ColumnMetadata, MetaData, QualityInfo, InspectReport
+from hermes.core.errors import HermesError
+from hermes.core.metadata import ColumnMetadata, InspectReport, MetaData, QualityInfo
 from hermes.core.result import Result
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ def normalize(data: object, **kwargs: object) -> Result:
 
 
 def validate(
-    data: object, 
+    data: object,
     contract: object | None = None
 ) -> Result:
 
@@ -29,8 +30,8 @@ def validate(
 
 
 def transform(
-    data: object, 
-    fn: object | None = None, 
+    data: object,
+    fn: object | None = None,
     **kwargs: object
 ) -> Result:
 
@@ -38,35 +39,39 @@ def transform(
 
 
 def inspect(data: pl.DataFrame) -> InspectReport:
-    cols = list(data.columns)
-    col_data = []
-    for col in cols:
-        col_data.append(
-            {f'{col}', f'{data[col].dtype}'}
-        )
-        
+    if data is None:
+        raise HermesError("No data provided to inspect()")
+
+    if isinstance(data, pl.LazyFrame):
+        data = data.collect()
+    elif not isinstance(data, pl.DataFrame):
+        data = pl.DataFrame(data)
+
+    columns = [(col, str(data.schema[col])) for col in data.columns]
+
     return InspectReport(
+        name="dataset",
         row_count=data.height,
         column_count=data.width,
-        columns=col_data,
-
+        columns=columns,
+        sample=data.head(5).to_dicts(),
     )
 
 
-def get_time_cols(data: pl.DataFrame) -> list[str]:
+def get_time_cols(data: pl.DataFrame) -> list[str] | None:
     time_cols = list(data.select(cs.temporal()).columns)
     if not time_cols:
-        logger.error("No Temporal Column Found")
+        logger.info("No temporal columns found")
         return None
     return time_cols
 
 
-def get_freqs(data: pl.DataFrame) -> list[str]:
+def get_freqs(data: pl.DataFrame) -> list[str] | None:
     time_cols = get_time_cols(data)
     if not time_cols:
-        logger.error('No frequency found')
+        logger.info('No frequency found')
         return None
-        
+
     cols = []
     for col in time_cols:
         freq = data[col].diff().mode().first()
@@ -77,16 +82,16 @@ def get_freqs(data: pl.DataFrame) -> list[str]:
 
 def date_ranges(
     data: pl.DataFrame | pl.LazyFrame
-) -> list[dict[str, tuple[Any, Any]]]:
+) -> list[dict[str, tuple[Any, Any]]] | None:
 
     if isinstance(data, pl.LazyFrame):
         data = data.collect()
     time_cols = get_time_cols(data)
-    
+
     if not time_cols:
-        logger.error('no date found')
+        logger.info('no date found')
         return None
-    
+
     bounds = []
     for col in time_cols:
         bound = data.select(min=pl.col(col).min(), max=pl.col(col).max())
@@ -121,7 +126,10 @@ def anomaly_count(data: pl.DataFrame | pl.LazyFrame, threshold: float = 1.5) -> 
 
 def profile(data: object | None = None, path: Path | None = None, source: str | None = None) -> MetaData:
     if data is not None:
-        data = pl.DataFrame(data)
+        if isinstance(data, pl.LazyFrame):
+            data = data.collect()
+        elif not isinstance(data, pl.DataFrame):
+            data = pl.DataFrame(data)
     elif path:
         path = Path(path)
         if path.suffix.lower() == ".csv":
@@ -136,8 +144,8 @@ def profile(data: object | None = None, path: Path | None = None, source: str | 
     stats_df = data.select([
         pl.all().null_count().name.suffix("_null_count"),
         pl.all().n_unique().name.suffix("_unique_count"),
-        cs.numeric().min().cast(pl.Int64).name.suffix("_min"),
-        cs.numeric().max().cast(pl.Int64).name.suffix("_max"),
+        cs.numeric().min().name.suffix("_min"),
+        cs.numeric().max().name.suffix("_max"),
         cs.numeric().mean().name.suffix("_mean"),
         cs.numeric().median().name.suffix("_median"),
         cs.numeric().std().name.suffix("_std"),
@@ -146,18 +154,16 @@ def profile(data: object | None = None, path: Path | None = None, source: str | 
 
     string_cols = data.select(cs.string()).columns
     top_values_map = {}
-    
-    if string_cols:
-        top_df = data.select([
-            pl.col(c).value_counts(sort=True).head(5).name.suffix("_struct") 
-            for c in string_cols
-        ])
-        
-        for c in string_cols:
-            struct_list = top_df.get_column(f"{c}_struct").to_list()
-            top_values_map[c] = [
-                (item[c], item["count"]) for item in struct_list if item is not None
-            ]
+
+    for col in string_cols:
+        structs = (
+            data.select(pl.col(col).value_counts(sort=True).head(5))
+            .to_series()
+            .to_list()
+        )
+        top_values_map[col] = [
+            (item[col], item["count"]) for item in structs if item is not None
+        ]
 
     col_metadata = []
     total_rows = len(data)
@@ -165,7 +171,7 @@ def profile(data: object | None = None, path: Path | None = None, source: str | 
     for col in data.columns:
         is_numeric = data.schema[col].is_numeric()
         null_count = stats[f"{col}_null_count"]
-        
+
         col_metadata.append(
             ColumnMetadata(
                 name=col,
@@ -184,7 +190,7 @@ def profile(data: object | None = None, path: Path | None = None, source: str | 
 
     null_df = data.select(pl.all().is_null().mean())
     completeness_map = null_df.select(pl.all().sub(1.0).abs()).row(0, named=True)
-    
+
     duplicate_count = int(data.is_duplicated().sum())
 
     data_quality = QualityInfo(
@@ -199,9 +205,10 @@ def profile(data: object | None = None, path: Path | None = None, source: str | 
         row_count=data.height,
         column_count=data.width,
         columns=col_metadata,
-        date_range=_date_ranges,
-        frequency=_freq,
+        date_range=_date_ranges[0] if _date_ranges else None,
+        frequency=_freq[0] if _freq else None,
         source=source,
         retrieved_at=datetime.now(tz=UTC),
+        profiled_at=datetime.now(tz=UTC),
         quality=data_quality,
     )
