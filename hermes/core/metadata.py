@@ -3,8 +3,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from hermes.core.provenance import Provenance
 from hermes.core.lineage import Lineage
+from hermes.core.provenance import Provenance
+
 
 class ColumnMetadata(BaseModel):
     name: str
@@ -14,10 +15,10 @@ class ColumnMetadata(BaseModel):
     unique_count: int = 0
     min_value: Any | None = None
     max_value: Any | None = None
-    mean: float | None = 0
-    median: float | None = 0
-    std: float | None = 0
-    top_values: list[tuple[Any, Any]]
+    mean: float | None = None
+    median: float | None = None
+    std: float | None = None
+    top_values: list[tuple[Any, Any]] = []
 
 
 class QualityInfo(BaseModel):
@@ -34,18 +35,23 @@ class MetaData(BaseModel):
     frequency: str | None = None
     source: str | None = None
     retrieved_at: datetime | None = None
+    profiled_at: datetime | None = None
     quality: QualityInfo | None = None
 
+
 class InspectReport(BaseModel):
-    dataset_id: str | None 
-    name: str | None = 'dataset'
-    version: str | None
-    schema_ref: str | None
+    dataset_id: str | None = None
+    name: str | None = "dataset"
+    version: str | None = None
+    schema_ref: str | None = None
 
-    columns: list[tuple[str, str]]
+    row_count: int | None = None
+    column_count: int | None = None
 
-    stored_metadata: MetaData | None
-    provenance: Provenance | None
-    lineage: Lineage | None 
+    columns: list[tuple[str, str]] = []
 
-    sample: list[dict[Any, Any]]
+    stored_metadata: MetaData | None = None
+    provenance: Provenance | None = None
+    lineage: Lineage | None = None
+
+    sample: list[dict[Any, Any]] = []
