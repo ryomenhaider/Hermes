@@ -63,7 +63,7 @@ export function HowItWorks() {
               transition={{ duration: 0.4, delay: i * 0.06 }}
               className="flex w-full flex-col items-center gap-3 md:w-auto md:flex-row md:gap-2"
             >
-              <div className="flex flex-col items-center gap-3 rounded-md border border-white/[0.07] bg-midnight px-6 py-5">
+              <div className="flex flex-col items-center gap-3 rounded-md border border-white/[0.07] bg-midnight px-6 py-5 transition-colors duration-200 hover:border-teal/50">
                 <step.icon className="h-6 w-6 text-teal" aria-hidden="true" />
                 <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-gray-bright">
                   {step.label}

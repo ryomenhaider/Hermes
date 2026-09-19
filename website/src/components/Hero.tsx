@@ -16,10 +16,8 @@ const fadeUp = {
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      {/* Decorative texture */}
       <div className="absolute inset-0" aria-hidden="true">
         <MapTexture />
-        {/* Faint grid lines */}
         <div
           className="absolute inset-0 opacity-[0.35]"
           style={{
@@ -51,7 +49,7 @@ export function Hero() {
         <motion.p
           {...fadeUp}
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.12 }}
-          className="mt-6 max-w-xl text-lg leading-relaxed text-gray-bright"
+          className="mt-7 max-w-xl text-base leading-relaxed text-gray-bright sm:text-lg"
         >
           Hermes is a modern data infrastructure platform for acquiring, processing
           and serving structured and unstructured data at scale.
@@ -68,7 +66,7 @@ export function Hero() {
         <motion.div
           {...fadeUp}
           transition={{ duration: 0.6, ease: "easeOut", delay: 0.24 }}
-          className="mt-12 flex flex-col gap-4 sm:flex-row"
+          className="mt-12 flex flex-col gap-3 sm:flex-row sm:gap-4"
         >
           <a
             href={DOCS_URL}
@@ -79,7 +77,7 @@ export function Hero() {
           </a>
           <a
             href={GITHUB_URL}
-            className="inline-flex items-center justify-center gap-2 rounded-sm border border-offwhite/30 px-7 py-3.5 font-sans text-sm font-semibold text-offwhite transition-colors duration-150 hover:border-offwhite/60"
+            className="inline-flex items-center justify-center gap-2 rounded-sm border border-offwhite/25 px-7 py-3.5 font-sans text-sm font-semibold text-offwhite transition-colors duration-150 hover:border-teal hover:text-teal"
           >
             View on GitHub
           </a>

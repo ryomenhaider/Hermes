@@ -43,7 +43,7 @@ export function Header() {
             <a
               key={l.label}
               href={l.href}
-              className="text-sm font-medium text-gray-bright transition-colors duration-150 hover:text-offwhite"
+              className="text-sm font-medium text-gray-bright transition-colors duration-150 hover:text-teal"
             >
               {l.label}
             </a>
@@ -56,7 +56,7 @@ export function Header() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md text-offwhite md:hidden"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-md text-offwhite transition-colors hover:text-teal md:hidden"
           aria-expanded={open}
           aria-label={open ? "Close menu" : "Open menu"}
         >
@@ -81,7 +81,7 @@ export function Header() {
                   key={l.label}
                   href={l.href}
                   onClick={() => setOpen(false)}
-                  className="rounded-md px-2 py-2.5 text-sm font-medium text-gray-bright transition-colors hover:text-offwhite"
+                  className="rounded-md px-2 py-2.5 text-sm font-medium text-gray-bright transition-colors hover:bg-white/[0.04] hover:text-teal"
                 >
                   {l.label}
                 </a>
