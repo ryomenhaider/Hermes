@@ -58,13 +58,13 @@ export function Features() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.45, delay: i * 0.08 }}
-              className="group rounded-md border border-white/[0.07] bg-[#0e1114] p-6 transition-colors duration-200 hover:border-teal/40"
+              className="group rounded-md border border-white/[0.07] bg-[#0e1114] p-6 transition-all duration-200 hover:border-teal/45 hover:bg-[#101518]"
             >
               <f.icon
                 className="mb-4 h-6 w-6 text-teal transition-transform duration-200 group-hover:scale-110"
                 aria-hidden="true"
               />
-              <h3 className="mb-2 font-sans text-lg font-semibold text-offwhite">
+              <h3 className="mb-2 font-sans text-lg font-semibold text-offwhite transition-colors duration-200 group-hover:text-teal">
                 {f.title}
               </h3>
               <p className="text-sm leading-relaxed text-gray-bright">
