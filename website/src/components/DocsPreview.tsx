@@ -60,12 +60,16 @@ export function DocsPreview() {
                       {item.header}
                     </p>
                   ) : (
-                    <p
-                      key={item.label}
-                      className="cursor-default px-2 py-1 text-sm text-gray-bright"
-                    >
-                      {item.label}
-                    </p>
+                   <p
+  key={item.label}
+  className={`cursor-default rounded-sm px-2 py-1 text-sm ${
+    item.label === "Introduction"
+      ? "bg-teal/10 font-medium text-teal"
+      : "text-gray-bright"
+  }`}
+>
+  {item.label}
+</p>
                   )
                 )}
               </nav>
