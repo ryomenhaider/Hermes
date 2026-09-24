@@ -263,7 +263,7 @@ class FilesystemStorage(StorageBackend):
             raise StorageCorruptionError(
                 f"dataset {name!r} shape mismatch: stored {stored.row_count}x{stored.column_count}, got {data.height}x{data.width}"
             )
-        stored_columns = [entry["name"] for entry in stored.column_schema if entry.get("name")]
+        stored_columns = [entry["name"] for entry in stored.column_schema if "name" in entry]
         if stored_columns and data.columns != stored_columns:
             raise StorageCorruptionError(
                 f"dataset {name!r} column mismatch: stored {stored_columns}, got {data.columns}"

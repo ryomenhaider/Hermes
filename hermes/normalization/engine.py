@@ -25,7 +25,7 @@ class NormalizationEngine:
             self.add_rules(rules)
 
     def add_rule(self, rule: NormalizationRule) -> NormalizationEngine:
-        """_summary_
+        """
         Args:
             rule (NormalizationRule): the rule to add to the engine
 
@@ -42,11 +42,19 @@ class NormalizationEngine:
         return self
 
     def add_rules(self, rules: Iterable[NormalizationRule]) -> NormalizationEngine:
+        """
+        Args:
+            rules (Iterable[NormalizationRule]): the rules to add to the engine
+
+        Returns:
+            NormalizationEngine: self, to allow for method chaining
+        """
         for rule in rules:
             self.add_rule(rule)
         return self
 
     def remove_rule(self, rule: NormalizationRule | str) -> NormalizationEngine:
+        
         target = rule.name if isinstance(rule, NormalizationRule) else rule
         for index, configured in enumerate(self._rules):
             if configured.name == target:
