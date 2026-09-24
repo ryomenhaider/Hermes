@@ -17,6 +17,7 @@ from hermes.normalization.rule import NormalizationRule
 
 
 class NormalizationEngine:
+
     def __init__(self, rules: list[NormalizationRule] | None = None, context: NormalizationContext | None = None):
         self._rules: list[NormalizationRule] = []
         self.context = context or NormalizationContext()
@@ -24,6 +25,16 @@ class NormalizationEngine:
             self.add_rules(rules)
 
     def add_rule(self, rule: NormalizationRule) -> NormalizationEngine:
+        """_summary_
+        Args:
+            rule (NormalizationRule): the rule to add to the engine
+
+        Raises:
+            RuleConfigurationError: if the rule is not a NormalizationRule or fails validation
+
+        Returns:
+            NormalizationEngine: self, to allow for method chaining
+        """
         if not isinstance(rule, NormalizationRule):
             raise RuleConfigurationError(f"Expected a NormalizationRule, got {type(rule).__name__}")
         rule.validate()
