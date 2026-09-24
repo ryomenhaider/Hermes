@@ -136,7 +136,7 @@ class NormalizationEngine:
         if isinstance(data, pl.DataFrame):
             return data, "df"
         if isinstance(data, pl.LazyFrame):
-            return data.collect(), "lazy"
+            return data.collect(engine='streaming'), "lazy"
         if pa is not None and isinstance(data, pa.Table):
             frame = pl.from_arrow(data)
             if not isinstance(frame, pl.DataFrame):

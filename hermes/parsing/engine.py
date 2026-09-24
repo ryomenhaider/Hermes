@@ -62,3 +62,14 @@ class ParserEngine:
             raise ParseError(f"No parser for format {fmt!r}")
         parser = self._parsers[fmt]
         return parser.parse(raw_data, **kwargs)
+
+    def scan(self, source: str | Path) -> pl.LazyFrame | None:
+        """Return a lazy scan of a file-based source, or None when the format has no native scan."""
+        fmt = self.detect_format(source)
+        if fmt == "parquet":
+            return pl.scan_parquet(source)
+        if fmt == "csv":
+            return pl.scan_csv(source)
+        if fmt == "jsonl":
+            return pl.scan_ndjson(source)
+        return None

@@ -39,6 +39,7 @@ class MetaData:
     retrieved_at: datetime | None = None
     profiled_at: datetime | None = None
     quality: QualityInfo | None = None
+    deep_stats: bool = True
 
 
 @dataclass

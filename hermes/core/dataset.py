@@ -17,8 +17,11 @@ from hermes.core.versioning import DataVersion
 
 
 def frame_checksum(data: object) -> str:
+    # ponytail: lazy frames are hashed by query plan, not content — hashing 33GB
+    # of rows on every record() would defeat lazy loading. Swap to a streaming
+    # content hash if version integrity requires it.
     if isinstance(data, pl.LazyFrame):
-        data = data.collect()
+        return hashlib.sha256(data.explain().encode()).hexdigest()
     if isinstance(data, pl.DataFrame):
         buf = io.BytesIO()
         data.write_ipc(buf)
@@ -124,21 +127,17 @@ class Dataset:
         if self.data is None:
             raise HermesError("Load the data first (call .load()).")
 
-        columns = [(col, str(self.data.schema[col])) for col in self.data.columns]
+        from hermes.api.data import inspect as inspect_data
 
-        return InspectReport(
-            dataset_id=str(self.id),
-            name=self.name,
-            version=self.version,
-            schema_ref=self.schema_ref,
-            row_count=self.data.height,
-            column_count=self.data.width,
-            columns=columns,
-            stored_metadata=self.metadata,
-            provenance=self.provenance,
-            lineage=self.lineage,
-            sample=self.data.head(5).to_dicts(),
-        )
+        report = inspect_data(self.data)
+        report.dataset_id = str(self.id)
+        report.name = self.name
+        report.version = self.version
+        report.schema_ref = self.schema_ref
+        report.stored_metadata = self.metadata
+        report.provenance = self.provenance
+        report.lineage = self.lineage
+        return report
 
     def profile(self) -> MetaData:
         if self.data is None:
@@ -192,6 +191,19 @@ class Dataset:
             raise ValueError(f"Unsupported export format: {format}")
 
         return buffer.getvalue()
+
+    def to_lazy(self) -> pl.LazyFrame:
+        from hermes.parsing.engine import ParserEngine
+
+        if isinstance(self.data, pl.LazyFrame):
+            return self.data
+        if isinstance(self.data, pl.DataFrame):
+            return self.data.lazy()
+        if self.data_ref is not None:
+            scan = ParserEngine().scan(self.data_ref)
+            if scan is not None:
+                return scan
+        return pl.DataFrame(self.data).lazy()
 
     def to_polars(self) -> pl.DataFrame:
         data = self.data
@@ -257,13 +269,13 @@ class Dataset:
             raise NotImplementedError("HTTP sources are not supported yet; use hr.fetch()")
 
         else:
-            data = self.__load_file()
+            from hermes.parsing.engine import ParserEngine
+
+            engine = ParserEngine()
+            data = engine.scan(ref)
+            if data is None:
+                data = engine.parse(ref)
 
         self.data = data
         self.record("load", input_ref=ref)
         return self.data
-
-    def __load_file(self):
-        from hermes.parsing.engine import ParserEngine
-
-        return ParserEngine().parse(self.data_ref)
