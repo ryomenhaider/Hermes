@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 class BaseConnector:
+    #: canonical registry schema this connector's canonical output conforms to
+    canonical_schema: str = ""
     def __init__(
         self,
         cache: RawCache | None = None,

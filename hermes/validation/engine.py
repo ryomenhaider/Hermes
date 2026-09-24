@@ -82,7 +82,7 @@ class ValidationEngine:
         if isinstance(data, pl.DataFrame):
             return data
         if isinstance(data, pl.LazyFrame):
-            return data.collect()
+            return data.collect(engine='streaming')
         if pa is not None and isinstance(data, pa.Table):
             return pl.DataFrame(pl.from_arrow(data))
         if isinstance(data, Mapping):

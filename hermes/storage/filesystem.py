@@ -37,8 +37,17 @@ from hermes.storage.errors import (
 from hermes.storage.metadata import StorageInfo, StoredDatasetMetadata
 
 _DATA_FILE = "data.parquet"
+_DATA_FILES = ("data.parquet", "data.ipc")
 _METADATA_FILE = "metadata.json"
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _data_file_for(format: str) -> str:
+    if format == "parquet":
+        return "data.parquet"
+    if format == "ipc":
+        return "data.ipc"
+    raise StorageWriteError(f"unsupported storage format {format!r}; expected 'parquet' or 'ipc'")
 
 
 def _assert_safe_name(name: str) -> str:
@@ -52,7 +61,17 @@ def _now() -> datetime:
     return datetime.now(tz=UTC)
 
 
-def _write_parquet(data: object, target: Path) -> None:
+def _write_data(data: object, target: Path, format: str) -> None:
+    if format == "ipc":
+        if isinstance(data, pl.DataFrame):
+            data.write_ipc(target)
+        elif isinstance(data, pl.LazyFrame):
+            data.sink_ipc(target)
+        elif pa is not None and isinstance(data, pa.Table):
+            pq.write_table(data, target, format="ipc")
+        else:
+            raise StorageWriteError(f"cannot persist data of type {type(data).__name__}; expected Polars/Arrow")
+        return
     if isinstance(data, pl.DataFrame):
         data.write_parquet(target)
     elif isinstance(data, pl.LazyFrame):
@@ -63,10 +82,18 @@ def _write_parquet(data: object, target: Path) -> None:
         raise StorageWriteError(f"cannot persist data of type {type(data).__name__}; expected Polars/Arrow")
 
 
-def _stats_from_file(path: Path) -> tuple[int, int, list[dict[str, str]]]:
+def _read_data(path: Path, format: str) -> pl.DataFrame:
+    read = pl.read_parquet if format == "parquet" else pl.read_ipc
+    try:
+        return read(path)
+    except Exception as exc:
+        raise StorageReadError(f"failed to read {format} file {path}: {exc}") from exc
 
-    schema = pl.read_parquet_schema(path)
-    rows = int(pl.scan_parquet(path).select(pl.len()).collect().item())
+
+def _stats_from_file(path: Path, format: str) -> tuple[int, int, list[dict[str, str]]]:
+    scan = pl.scan_parquet(path) if format == "parquet" else pl.scan_ipc(path)
+    schema = scan.collect_schema()
+    rows = int(scan.select(pl.len()).collect().item())
     return rows, len(schema), [{"name": col, "dtype": str(dtype)} for col, dtype in schema.items()]
 
 
@@ -131,19 +158,30 @@ class FilesystemStorage(StorageBackend):
     def _path_for(self, name: str) -> Path:
         return self._datasets_dir / _assert_safe_name(name)
 
-    def _data_path(self, name: str) -> Path:
-        return self._path_for(name) / _DATA_FILE
+    def _find_data_path(self, name: str) -> Path | None:
+        target_dir = self._path_for(name)
+        for candidate in _DATA_FILES:
+            if (target_dir / candidate).is_file():
+                return target_dir / candidate
+        return None
 
     def _metadata_path(self, name: str) -> Path:
         return self._path_for(name) / _METADATA_FILE
 
-    def save(self, dataset: Dataset, name: str | None = None, overwrite: bool = False) -> StorageInfo:
+    def save(
+        self,
+        dataset: Dataset,
+        name: str | None = None,
+        overwrite: bool = False,
+        format: str = "parquet",
+    ) -> StorageInfo:
+        data_file = _data_file_for(format)
         target_name = _assert_safe_name(dataset.name if name is None else name)
         if dataset.data is None:
             raise StorageWriteError(f"Dataset {target_name!r} has no in-memory data; load it first (dataset.load())")
 
         target_dir = self._path_for(target_name)
-        data_path = target_dir / _DATA_FILE
+        data_path = target_dir / data_file
         metadata_path = target_dir / _METADATA_FILE
 
         created = _now()
@@ -156,9 +194,9 @@ class FilesystemStorage(StorageBackend):
         created_dir = not target_dir.exists()
         try:
             target_dir.mkdir(parents=True, exist_ok=True)
-            _atomic_write(data_path, lambda tmp: _write_parquet(dataset.data, tmp))
-            rows, columns, column_schema = _stats_from_file(data_path)
-            stored = self._build_metadata(dataset, target_name, rows, columns, column_schema, created)
+            _atomic_write(data_path, lambda tmp: _write_data(dataset.data, tmp, format))
+            rows, columns, column_schema = _stats_from_file(data_path, format)
+            stored = self._build_metadata(dataset, target_name, rows, columns, column_schema, created, format, data_file)
             _atomic_write(
                 metadata_path,
                 lambda tmp: tmp.write_text(_dump(stored), encoding="utf-8"),
@@ -182,6 +220,8 @@ class FilesystemStorage(StorageBackend):
         columns: int,
         column_schema: list[dict[str, str]],
         created: datetime,
+        format: str = "parquet",
+        data_file: str = "data.parquet",
     ) -> StoredDatasetMetadata:
         source = dataset.provenance.source or dataset.metadata.source
         return StoredDatasetMetadata(
@@ -189,6 +229,8 @@ class FilesystemStorage(StorageBackend):
             dataset_id=str(dataset.id) if dataset.id else None,
             version=dataset.version,
             schema_ref=dataset.schema_ref,
+            format=format,
+            data_file=data_file,
             source=source,
             row_count=rows,
             column_count=columns,
@@ -202,23 +244,37 @@ class FilesystemStorage(StorageBackend):
         )
 
     def load(self, name: str) -> Dataset:
-        data_path = self._data_path(name)
+        data_path = self._find_data_path(name)
         metadata_path = self._metadata_path(name)
-        if not data_path.is_file() or not metadata_path.is_file():
+        if data_path is None or not metadata_path.is_file():
             self._raise_not_found_or_corrupt(name, data_path, metadata_path)
 
         stored = self._load_metadata(name)
-        try:
-            data = pl.read_parquet(data_path)
-        except Exception as exc:
-            raise StorageReadError(f"failed to read Parquet for dataset {name!r}: {exc}") from exc
+        fmt = stored.format if stored.format in ("parquet", "ipc") else "parquet"
+        data_path = data_path or self._path_for(name) / _data_file_for(fmt)
+        data = _read_data(data_path, fmt)
+        self._check_integrity(name, stored, data)
         return self._to_dataset(stored, data, data_path)
 
-    def _raise_not_found_or_corrupt(self, name: str, data_path: Path, metadata_path: Path) -> None:
-        target_dir = self._path_for(name)
-        if target_dir.is_dir() and (data_path.is_file() or metadata_path.is_file()):
+    def _check_integrity(self, name: str, stored: StoredDatasetMetadata, data: pl.DataFrame) -> None:
+        if stored.row_count is None or stored.column_schema is None:
+            return
+        if data.height != stored.row_count or data.width != stored.column_count:
             raise StorageCorruptionError(
-                f"dataset {name!r} is incomplete (missing {'data' if not data_path.is_file() else 'metadata'})"
+                f"dataset {name!r} shape mismatch: stored {stored.row_count}x{stored.column_count}, got {data.height}x{data.width}"
+            )
+        stored_columns = [entry["name"] for entry in stored.column_schema if "name" in entry]
+        if stored_columns and data.columns != stored_columns:
+            raise StorageCorruptionError(
+                f"dataset {name!r} column mismatch: stored {stored_columns}, got {data.columns}"
+            )
+
+    def _raise_not_found_or_corrupt(self, name: str, data_path: Path | None, metadata_path: Path) -> None:
+        target_dir = self._path_for(name)
+        data_ok = data_path is not None
+        if target_dir.is_dir() and (data_ok or metadata_path.is_file()):
+            raise StorageCorruptionError(
+                f"dataset {name!r} is incomplete (missing {'data' if not data_ok else 'metadata'})"
             )
         raise DatasetNotFoundError(f"Dataset {name!r} not found in storage")
 
@@ -245,7 +301,7 @@ class FilesystemStorage(StorageBackend):
 
     def exists(self, name: str) -> bool:
         target_dir = self._path_for(name)
-        return target_dir.is_dir() and (target_dir / _DATA_FILE).is_file() and (target_dir / _METADATA_FILE).is_file()
+        return target_dir.is_dir() and self._find_data_path(name) is not None and (target_dir / _METADATA_FILE).is_file()
 
     def delete(self, name: str) -> None:
         if not self.exists(name):
@@ -258,7 +314,7 @@ class FilesystemStorage(StorageBackend):
             return []
         names = []
         for entry in datasets_dir.iterdir():
-            if entry.is_dir() and (entry / _DATA_FILE).is_file() and (entry / _METADATA_FILE).is_file():
+            if entry.is_dir() and self._find_data_path(entry.name) is not None and (entry / _METADATA_FILE).is_file():
                 names.append(entry.name)
         return sorted(names)
 
@@ -266,7 +322,8 @@ class FilesystemStorage(StorageBackend):
         if not self.exists(name):
             raise DatasetNotFoundError(f"Dataset {name!r} not found in storage")
         stored = self._load_metadata(name)
-        return self._info_from(stored, self._data_path(name))
+        fmt = stored.format if stored.format in ("parquet", "ipc") else "parquet"
+        return self._info_from(stored, self._find_data_path(name) or self._path_for(name) / _data_file_for(fmt))
 
     def _info_from(self, stored: StoredDatasetMetadata, data_path: Path) -> StorageInfo:
         size = data_path.stat().st_size if data_path.is_file() else 0

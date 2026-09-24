@@ -1,4 +1,10 @@
-from hermes.api.acquire import fetch, fetch_raw, ingest, read, sync
+from hermes.api.acquire import (
+    fetch,
+    fetch_raw,
+    ingest,
+    read,
+    sync,
+)
 from hermes.api.data import (
     anomaly_count,
     date_ranges,
@@ -7,11 +13,18 @@ from hermes.api.data import (
     normalize,
     parse,
     profile,
+    resolve_data,
     transform,
     validate,
 )
-from hermes.api.datasets import get_dataset, search_datasets
-from hermes.api.entities import resolve_company, resolve_country, resolve_entity
+from hermes.api.entities import (
+    resolve_company,
+    resolve_country,
+    resolve_entity,
+    resolve_organization,
+    resolve_person,
+    resolve_security,
+)
 from hermes.api.schemas import compare_schema, get_schema, migrate, register_schema
 from hermes.api.storage import delete, exists, list_datasets, load, save, storage_info
 from hermes.core.config import configure, get_config
@@ -30,18 +43,10 @@ from hermes.core.errors import (
     ValidationError,
 )
 from hermes.core.result import Result
+from hermes.core.hrm_id import hrm_id
 from hermes.credentials.manager import delete_cred, get_cred, has_cred, list_creds, set_cred
-from hermes.features.financial.crpto import CryptoHistory
-from hermes.features.financial.filling import CompanyFilling
-from hermes.features.financial.fundamental import CompanyFundamental
-from hermes.features.financial.technical import TechnicalFeatures
 
 __all__ = [
-    # Features
-    "CryptoHistory",
-    "CompanyFilling",
-    "CompanyFundamental",
-    "TechnicalFeatures",
     # Fetching
     "fetch",
     "fetch_raw",
@@ -64,14 +69,16 @@ __all__ = [
     "get_freqs",
     "date_ranges",
     "anomaly_count",
+    "resolve_data",
     # Datasets
     "Dataset",
-    "get_dataset",
-    "search_datasets",
     # Entities
     "resolve_entity",
     "resolve_country",
     "resolve_company",
+    "resolve_security",
+    "resolve_organization",
+    "resolve_person",
     # Schemas
     "get_schema",
     "register_schema",
@@ -89,6 +96,7 @@ __all__ = [
     "get_config",
     # Core
     "Result",
+    "hrm_id",
     "HermesError",
     "AcquisitionError",
     "ParseError",

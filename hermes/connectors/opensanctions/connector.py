@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class OpenSanction(BaseConnector):
+    canonical_schema = "entity"
+
     def __init__(self, cache: RawCache | None = None):
         self._base_url = "https://api.opensanctions.org"
         self._api_key = get_cred("opensanction")

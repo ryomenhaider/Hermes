@@ -322,21 +322,22 @@ def test_hr_workflow(hr_store):
     assert result.is_success()
     assert result.data.rows == 4
 
-    assert hr.list_datasets() == ["world_bank_gdp"]
-    assert hr.exists("world_bank_gdp")
+    assert hr.list_datasets().data == ["world_bank_gdp"]
+    assert hr.exists("world_bank_gdp").data is True
 
-    info = hr.storage_info("world_bank_gdp")
+    info = hr.storage_info("world_bank_gdp").data
     assert info.dataset == "world_bank_gdp"
     assert info.rows == 4
 
-    loaded = hr.load("world_bank_gdp")
+    loaded = hr.load("world_bank_gdp").data
     assert isinstance(loaded, Dataset)
     assert_frame_equal(loaded.data, dataset.data)
 
-    hr.delete("world_bank_gdp")
-    assert not hr.exists("world_bank_gdp")
-    with pytest.raises(DatasetNotFoundError):
-        hr.load("world_bank_gdp")
+    assert hr.delete("world_bank_gdp").is_success()
+    assert hr.exists("world_bank_gdp").data is False
+    missing = hr.load("world_bank_gdp")
+    assert missing.is_failure()
+    assert missing.errors[0].code == "DatasetNotFoundError"
 
 
 def test_hr_save_failure_returns_result(hr_store):
@@ -351,15 +352,51 @@ def test_hr_save_overwrite(hr_store):
     hr.save(make_dataset(rows=4))
     result = hr.save(make_dataset(rows=1), overwrite=True)
     assert result.is_success()
-    assert hr.load("world_bank_gdp").data.height == 1
+    assert hr.load("world_bank_gdp").data.data.height == 1
 
 
 def test_hr_storage_info_encodeable(hr_store):
     hr.save(make_dataset())
-    info = hr.storage_info("world_bank_gdp")
+    info = hr.storage_info("world_bank_gdp").data
     json.dumps(dataclasses.asdict(info), default=str)
 
 
 def test_hr_load_missing_raises(hr_store):
-    with pytest.raises(DatasetNotFoundError):
-        hr.load("missing")
+    result = hr.load("missing")
+    assert result.is_failure()
+    assert result.errors[0].code == "DatasetNotFoundError"
+
+
+def test_save_load_ipc_roundtrip(store):
+    df = pl.DataFrame({"ticker": ["AAPL", "NVDA"], "value": [1.5, 2.5]})
+    ds = Dataset(name="ipc_demo", data=df).record("fetch", input_ref="demo")
+    info = store.save(ds, format="ipc")
+    assert info.format == "ipc"
+    assert info.path.endswith("data.ipc")
+
+    loaded = store.load("ipc_demo")
+    assert loaded.data.height == 2
+    assert loaded.data["ticker"].to_list() == ["AAPL", "NVDA"]
+    assert loaded.data_version == ds.data_version
+    assert loaded.lineage.last_operation().operation == "fetch"
+
+
+def test_load_detects_corrupt_shape(store, tmp_path):
+    ds = Dataset(name="corruptible", data=pl.DataFrame({"a": [1, 2], "b": [3, 4]}))
+    store.save(ds)
+    # Truncate the parquet file so the loaded shape differs from stored metadata.
+    data_path = store._find_data_path("corruptible")
+    bad = pl.DataFrame({"a": [1]})
+    bad.write_parquet(data_path)
+    with pytest.raises(StorageCorruptionError, match="shape mismatch"):
+        store.load("corruptible")
+
+
+def test_hr_save_format_roundtrip(hr_store):
+    ds = Dataset(name="hr_ipc", data=pl.DataFrame({"x": [1]})).record("fetch", input_ref="src")
+    saved = hr.save(ds, name="hr_ipc", format="ipc")
+    assert saved.is_success()
+    assert saved.data.format == "ipc"
+    loaded = hr.load("hr_ipc")
+    assert loaded.is_success()
+    assert loaded.data.to_polars().to_dicts() == [{"x": 1}]

@@ -17,6 +17,7 @@ from hermes.normalization.rule import NormalizationRule
 
 
 class NormalizationEngine:
+
     def __init__(self, rules: list[NormalizationRule] | None = None, context: NormalizationContext | None = None):
         self._rules: list[NormalizationRule] = []
         self.context = context or NormalizationContext()
@@ -24,6 +25,16 @@ class NormalizationEngine:
             self.add_rules(rules)
 
     def add_rule(self, rule: NormalizationRule) -> NormalizationEngine:
+        """
+        Args:
+            rule (NormalizationRule): the rule to add to the engine
+
+        Raises:
+            RuleConfigurationError: if the rule is not a NormalizationRule or fails validation
+
+        Returns:
+            NormalizationEngine: self, to allow for method chaining
+        """
         if not isinstance(rule, NormalizationRule):
             raise RuleConfigurationError(f"Expected a NormalizationRule, got {type(rule).__name__}")
         rule.validate()
@@ -31,11 +42,19 @@ class NormalizationEngine:
         return self
 
     def add_rules(self, rules: Iterable[NormalizationRule]) -> NormalizationEngine:
+        """
+        Args:
+            rules (Iterable[NormalizationRule]): the rules to add to the engine
+
+        Returns:
+            NormalizationEngine: self, to allow for method chaining
+        """
         for rule in rules:
             self.add_rule(rule)
         return self
 
     def remove_rule(self, rule: NormalizationRule | str) -> NormalizationEngine:
+        
         target = rule.name if isinstance(rule, NormalizationRule) else rule
         for index, configured in enumerate(self._rules):
             if configured.name == target:
@@ -136,7 +155,7 @@ class NormalizationEngine:
         if isinstance(data, pl.DataFrame):
             return data, "df"
         if isinstance(data, pl.LazyFrame):
-            return data.collect(), "lazy"
+            return data.collect(engine='streaming'), "lazy"
         if pa is not None and isinstance(data, pa.Table):
             frame = pl.from_arrow(data)
             if not isinstance(frame, pl.DataFrame):

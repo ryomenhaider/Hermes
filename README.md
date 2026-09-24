@@ -81,13 +81,13 @@ hermes --help
 | `Dataset.save()` / `.export()` | Persist (parquet/csv/json) or export to another system |
 | `Dataset.metadata_info/ provenance_info / lineage_info / schema_info` | The beginning of Hermes' provenance story |
 | `hr.parse()` / `hr.normalize()` / `hr.validate()` | Parsing engine (csv/json/jsonl/parquet/xml) plus 17 normalization and 22 validation rules |
-| Storage: `hr.save` / `hr.load` / `hr.exists` / `hr.delete` / `hr.list_datasets` / `hr.storage_info` | Filesystem backend persisting Dataset + metadata as Parquet, with `StorageInfo` (records, columns, created/modified, checksums) |
+| Storage: `hr.save` / `hr.load` / `hr.exists` / `hr.delete` / `hr.list_datasets` / `hr.storage_info` | Filesystem backend persisting Dataset + metadata as Parquet or IPC, with load-time integrity checks and `StorageInfo` (records, columns, created/modified) |
 | Credentials | `hr.set_cred()/get_cred()/has_cred()/list_creds()/delete_cred()` persisted to `~/.hermes-plt/credentials.json` |
 | Scheduler | `@hermes.core.scheduler.schedule` cron/interval jobs |
 | Error taxonomy | `HermesError`, `ParseError`, `SchemaError`, `NormalizationError`, `ValidationError`, `StorageError`, `QueryError`, `AcquisitionError` and more |
-| CLI | Rust-backed (`clap`): `hermes fetch|inspect|dataset|entity` parse today, wired in upcoming releases |
+| CLI | `hermes fetch|inspect|profile|entity|dataset` wired to the data API |
 | Connectors (10, experimental) | Binance, Finnhub, FRED, IMF, SEC EDGAR, World Bank, YFinance, OpenSanctions, GDELT (stub), public datasets — all ported onto one `BaseConnector` contract that reuses the acquisition engine (retry / rate-limit / auth handling), and applies normalization, validation and provenance to every source |
-| Tests | 414 unit tests covering connectors, scheduler, features, parsing, normalization, validation, storage, and the data API |
+| Tests | 362 unit tests covering connectors, scheduler, parsing, normalization, validation, entities, schemas, storage (incl. IPC + integrity), catalog, CLI, and the data API |
 
 ### The Dataset object
 

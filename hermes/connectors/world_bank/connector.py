@@ -26,6 +26,8 @@ _EMPTY_SCHEMA = {
 
 
 class World_bank(BaseConnector):
+    canonical_schema = "economic.observation"
+
     def __init__(self, cache: RawCache | None = None):
         super().__init__(cache)
         self.url = WORLD_BANK_BASE_URL

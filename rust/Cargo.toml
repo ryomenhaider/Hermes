@@ -25,3 +25,6 @@ abi3 = ["pyo3/abi3-py311"]
 
 [dev-dependencies]
 rcgen = "0.13"
+
+[profile.dev]
+debug = false

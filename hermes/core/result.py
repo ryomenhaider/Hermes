@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from hermes.core.errors import HermesError
+
 
 @dataclass
 class ResultError:
@@ -34,4 +36,4 @@ class Result:
 
     def raise_if_failure(self) -> None:
         if self.errors:
-            raise RuntimeError(self.errors[0].message)
+            raise HermesError(self.errors[0].message)

@@ -251,16 +251,6 @@ countries: list[str] = [
 ]
 
 
-def iso3_to_iso2(iso3_code: str) -> str:
-    from hermes.connectors.public_data.connector import iso3_to_iso2 as _impl
-
-    return _impl(iso3_code)
-
-
-def check_iso3(code: str) -> None:
-    from hermes.connectors.public_data.connector import check_iso3 as _impl
-
-    _impl(code)
-
+from hermes.resources.countries import check_iso3, iso3_to_iso2
 
 __all__ = ["countries", "iso3_to_iso2", "check_iso3"]

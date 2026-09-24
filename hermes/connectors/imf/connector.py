@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class IMF(BaseConnector):
+    canonical_schema = "economic.observation"
+
     def __init__(self, cache: RawCache | None = None):
         super().__init__(cache)
         self.url: str = IMF_BASE_URL

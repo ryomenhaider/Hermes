@@ -702,3 +702,34 @@ def test_custom_rule():
     assert result.passed
     result2 = hr.validate([{"a": 3}], rules=[AllEven()])
     assert not result2.passed
+
+def test_hr_validate_with_canonical_schema():
+    import hermes as hr
+
+    frame = pl.DataFrame(
+        {"entity_id": ["HRM-COUNTRY-ABC"], "date": ["2024-01-01"], "indicator": ["CPI"], "value": [3.5]}
+    )
+    result = hr.validate(frame, schema="economic.observation")
+    assert not result.passed  # missing frequency/unit/source columns
+    assert "SchemaCheck" in {r.rule for r in result.results}
+
+
+def test_hr_validate_with_schema_passes_on_conforming_frame():
+    import hermes as hr
+
+    frame = pl.DataFrame(
+        {
+            "entity_id": ["HRM-COUNTRY-ABC"],
+            "date": [datetime.datetime(2024, 1, 1)],
+            "indicator": ["CPI"],
+            "value": [3.5],
+            "unit": ["score"],
+            "frequency": ["A"],
+            "source": ["test"],
+        }
+    )
+    result = hr.validate(frame, schema="economic.observation")
+    assert result.passed
+
+    bad = hr.validate(frame.drop("source"), schema="economic.observation")
+    assert not bad.passed

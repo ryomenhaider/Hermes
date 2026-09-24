@@ -39,6 +39,7 @@ class MetaData:
     retrieved_at: datetime | None = None
     profiled_at: datetime | None = None
     quality: QualityInfo | None = None
+    deep_stats: bool = True
 
 
 @dataclass
@@ -52,6 +53,8 @@ class InspectReport:
     column_count: int | None = None
 
     columns: list[tuple[str, str]] = field(default_factory=list)
+
+    needs: list[tuple[str, str]] = field(default_factory=list)
 
     stored_metadata: MetaData | None = None
     provenance: Provenance | None = None

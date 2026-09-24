@@ -7,9 +7,8 @@ import polars as pl
 
 from hermes.acquisition.cache import RawCache
 from hermes.connectors.base import BaseConnector
-from hermes.connectors.binance.mappings import BINANCE_ENDPOINTS
+from hermes.connectors.binance.mappings import BINANCE_ENDPOINTS, BINANCE_INTERVAL_MS
 from hermes.connectors.binance.parser import klines_to_dataframe
-from hermes.constants import BINANCE_INTERVAL_MS
 from hermes.core.errors import AcquisitionError
 from hermes.validation import NotNull
 
@@ -17,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class Binance(BaseConnector):
+    canonical_schema = "market.observation"
     def __init__(self, cache: RawCache | None = None):
         super().__init__(cache, retry_auth=True)
         self._spot_url = "https://api.binance.com"

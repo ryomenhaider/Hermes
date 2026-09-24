@@ -189,9 +189,10 @@ hr.get_metadata()
 #### Datasets
 
 ```python
-hr.dataset()
-hr.datasets()
-hr.search_datasets()
+hr.list_datasets()            # Result of stored dataset names
+DatasetCatalog().load()       # real catalog: DatasetDescriptor index (list/get/search/register)
+hr.dataset()                  # roadmap (E11 catalog API)
+hr.search_datasets()          # roadmap (E11 catalog API)
 ```
 
 #### Storage
@@ -1514,23 +1515,22 @@ HermesError
 
 ### 28. CLI
 
-Eventually:
+Implemented (`hermes --storage <root>` selects the store):
 
 ```bash
-hermes fetch sec
-hermes fetch fred
+hermes fetch <connector-or-file> [dataset]
+hermes inspect <file-or-name>
+hermes profile <file-or-name> [--json]
+hermes entity resolve <query> [--type country|company|security|...]
+hermes dataset list | info <name> | delete <name>
+```
 
+Planned:
+
+```bash
 hermes parse data.csv
 hermes normalize data.csv
 hermes validate data.csv
-
-hermes inspect data.csv
-hermes profile data.csv
-
-hermes entity resolve companies.csv
-
-hermes dataset list
-hermes dataset info companies
 
 hermes save data.csv
 hermes load companies
@@ -1548,6 +1548,8 @@ hermes diff companies:v1 companies:v2
 ### 29. Actual Hermes Package Structure
 
 Putting everything together:
+
+*The tree below is illustrative. Reality since Phases 1–10: the public surface lives in `hermes/api/`; metadata/provenance/lineage/versioning/inspection models live in `hermes/core/` (not separate top-level packages); `entities/` has no `companies.py`/`countries.py` (seeds come from `hermes/resources/countries.py` + `connectors/lib/datasets/cik.parquet`); storage is `hermes/storage/filesystem.py` with metadata/format handling inline (no `parquet.py`/`duckdb.py`); CLI is `hermes/cli`; credentials live in `hermes/credentials`.*
 
 ```text
 hermes/
@@ -1982,7 +1984,7 @@ External Source → Connector → Raw Data → Parse → Normalize → Validate
 
 ### E1. Core Dataset System
 
-*Status: core implemented — `Dataset`, `Result`, error taxonomy, and the metadata/provenance/lineage/version models exist. Save/export, load, inspect, profile work; catalog + query engines pending.*
+*Status: core implemented — `Dataset`, `Result`, error taxonomy, and the metadata/provenance/lineage/version models exist. Save/export, load, inspect, profile work; `DatasetCatalog` (descriptor index over stored datasets) implemented; query engine pending.*
 
 - [x] Create `Dataset` abstraction
 - [x] Define dataset identity
@@ -2004,7 +2006,7 @@ return consistent `Dataset`/result types.
 
 ### E2. Acquisition Engine
 
-*Status: partial — `RawCache` (Parquet disk cache with TTL/keys/stats) and `Client` (Rust core HTTP: retries, backoff, error mapping, streaming) implemented and used by all connectors. NOT implemented: source registry, sync state, pagination helpers, `fetch/ingest/source/connect/read/stream` API.*
+*Status: partial — `RawCache` (Parquet disk cache with TTL/keys/stats) and `Client` (Rust core HTTP: retries, backoff, error mapping, streaming) implemented and used by all connectors. `fetch`/`fetch_raw`/`read`/`ingest`/`sync` top-level API implemented for registered sources (binance, finnhub, fred, imf, opensanctions, sec, world_bank, yfinance); local files ingest via path. NOT implemented: sync state persistence, pagination helpers.*
 
 - [ ] Define `Source`: configuration, credentials, capabilities, metadata, lifecycle
 - [ ] Implement `fetch()`, `ingest()`, `source()`, `connect()`, `read()`, `stream()`
@@ -2039,7 +2041,7 @@ return consistent `Dataset`/result types.
 
 ### E4. Schema / Data Contract Engine
 
-*Status: partial. `Schema`/`FieldDef` models + 7 canonical schemas defined (`economic.observation`, `financial.observation`, `market.observation`, `geopolitical.event`, `security.event`, `entity`, `document`). NOT implemented: registry, compatibility, inference, migration, top-level API.*
+*Status: implemented — `Schema`/`FieldDef` models + 7 canonical schemas registered (`economic.observation`, `financial.observation`, `market.observation`, `geopolitical.event`, `security.event`, `entity`, `document`). `SchemaRegistry` (register/get/latest semver/compatibility/migrate) + top-level `get_schema`/`register_schema`/`compare_schema`/`migrate` implemented. NOT implemented: infer_schema from data, migration backfill.*
 
 - [x] Define schema model: fields, types, nullable, required, constraints
 - [ ] Schema versioning and serialization
@@ -2111,7 +2113,7 @@ return consistent `Dataset`/result types.
 
 ### E10. Entity System *(first-class pillar)*
 
-*Status: partial — `Entity`/`EntityMatch` models, `Resolver` ABC, `countries` (249 ISO-3 codes, `iso3_to_iso2`, `check_iso3`) and `get_cik()` implemented. NOT implemented: `EntityRegistry`, `resolve_entity/country/company` top-level API, aliases, person resolution, ~100k-entity registry.*
+*Status: implemented — `Entity`/`EntityMatch` models, `Resolver` ABC, `EntityRegistry`, seeds (249 ISO-3 countries via `countries_frame()`, ~8k SEC CIK → company entities via `cik.parquet`), aliases (`add_alias`/`resolve_alias`/`list_aliases`), and `resolve_entity/country/company/security/organization/person` top-level API; variably-typed entities resolve by name/identifier/alias, `resolve_data` maps key columns to entity ids. NOT implemented: ~100k-entity registry, fuzzy matcher tuning.*
 
 - [x] Define `Entity` and `EntityMatch` models; canonical entity representation
 - [x] Define `Resolver` interface: `resolve()`, `identify()`, `match()`, `link()`, `entity()`
@@ -2201,7 +2203,7 @@ Corporate/financial/defense/healthcare identifiers can be added independently.
 
 ### E20. Inspection / Developer Experience
 
-*Status: partial — `inspect()` and `profile()` implemented (data API + Dataset methods). The Rust CLI (`fetch/inspect/dataset/entity`) parses but is not wired up. Not ended: `get_metadata`/`get_provenance`/`get_lineage` wrappers, catalog schema/lineage inspection CLI.*
+*Status: implemented — `inspect()` and `profile()` implemented (data API + Dataset methods); CLI (`hermes fetch|inspect|profile|entity|dataset`) wired to the data API. Not ended: `get_metadata`/`get_provenance`/`get_lineage` wrappers, catalog schema/lineage inspection CLI.*
 
 - [ ] Implement `inspect()`: dimensions, schema, metadata, sample records, quality, lineage,
       provenance, version
@@ -2229,7 +2231,7 @@ Corporate/financial/defense/healthcare identifiers can be added independently.
 
 ### E24. Public API
 
-*Status: partial — real: `parse`, `normalize`, `validate`, `profile`, `inspect`, `get_freqs`, `date_ranges`, `anomaly_count`, `Dataset`, `Result`, credentials (`set_cred`/`get_cred`/`has_cred`/`list_creds`/`delete_cred`). Scaffolded (raise `NotImplementedError`): `fetch`, `ingest`, `read`, `sync`, `transform`, `resolve_entity/country/company`, `list_datasets`/`get_dataset`/`search_datasets`, `get_schema`/`register_schema`/`compare_schema`/`migrate`, `save`/`load`/`query`/`materialize`, `configure`/`get_config`.*
+*Status: real — `parse`, `normalize`, `transform`, `validate` (incl. `schema=`), `profile`, `inspect`, `resolve_data`, `get_freqs`, `date_ranges`, `anomaly_count`, `Dataset`, `Result`, acquisition (`fetch`/`fetch_raw`/`read`/`ingest`/`sync`), entities (`resolve_entity`/`resolve_country`/`resolve_company`/`resolve_security`/`resolve_organization`/`resolve_person`), schemas (`get_schema`/`register_schema`/`compare_schema`/`migrate`), storage (`save`/`load`/`exists`/`delete`/`list_datasets`/`storage_info`, parquet + IPC), credentials (`set_cred`/`get_cred`/`has_cred`/`list_creds`/`delete_cred`), `configure`/`get_config`. Roadmap-gated (do not build now): `query`/`materialize` (DuckDB query engine), `get_dataset`/`search_datasets` (dataset catalog is `DatasetCatalog` in `hermes.datasets`).*
 
 ```python
 hr.fetch()            hr.ingest()           hr.read()             hr.sync()

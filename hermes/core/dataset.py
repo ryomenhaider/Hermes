@@ -1,6 +1,8 @@
 import hashlib
 import io
+import os
 import sqlite3
+import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,12 +19,25 @@ from hermes.core.versioning import DataVersion
 
 
 def frame_checksum(data: object) -> str:
-    if isinstance(data, pl.LazyFrame):
-        data = data.collect()
+    """Content hash of a frame (streamed to disk for lazy frames)."""
     if isinstance(data, pl.DataFrame):
         buf = io.BytesIO()
         data.write_ipc(buf)
         return hashlib.sha256(buf.getvalue()).hexdigest()
+    if isinstance(data, pl.LazyFrame):
+        # Streaming row-group sink keeps memory bounded; the hash covers the
+        # full materialized content, not the query plan.
+        fd, path = tempfile.mkstemp(suffix=".ipc")
+        try:
+            data.sink_ipc(path)
+            digest = hashlib.sha256()
+            with open(path, "rb") as handle:
+                for block in iter(lambda: handle.read(1 << 20), b""):
+                    digest.update(block)
+            return digest.hexdigest()
+        finally:
+            os.close(fd)
+            os.unlink(path)
     return hashlib.sha256(repr(data).encode()).hexdigest()
 
 
@@ -101,7 +116,7 @@ class Dataset:
 
     def __getattr__(self, name: str) -> object:
         data = self.__dict__.get("data")
-        if data is None or name.startswith("__"):
+        if not isinstance(data, (pl.DataFrame, pl.LazyFrame)) or name.startswith("__"):
             raise AttributeError(name)
         return getattr(data, name)
 
@@ -124,21 +139,17 @@ class Dataset:
         if self.data is None:
             raise HermesError("Load the data first (call .load()).")
 
-        columns = [(col, str(self.data.schema[col])) for col in self.data.columns]
+        from hermes.api.data import inspect as inspect_data
 
-        return InspectReport(
-            dataset_id=str(self.id),
-            name=self.name,
-            version=self.version,
-            schema_ref=self.schema_ref,
-            row_count=self.data.height,
-            column_count=self.data.width,
-            columns=columns,
-            stored_metadata=self.metadata,
-            provenance=self.provenance,
-            lineage=self.lineage,
-            sample=self.data.head(5).to_dicts(),
-        )
+        report = inspect_data(self.data)
+        report.dataset_id = str(self.id)
+        report.name = self.name
+        report.version = self.version
+        report.schema_ref = self.schema_ref
+        report.stored_metadata = self.metadata
+        report.provenance = self.provenance
+        report.lineage = self.lineage
+        return report
 
     def profile(self) -> MetaData:
         if self.data is None:
@@ -193,6 +204,28 @@ class Dataset:
 
         return buffer.getvalue()
 
+    def to_lazy(self) -> pl.LazyFrame:
+        from hermes.parsing.engine import ParserEngine
+
+        if isinstance(self.data, pl.LazyFrame):
+            return self.data
+        if isinstance(self.data, pl.DataFrame):
+            return self.data.lazy()
+        if self.data_ref is not None:
+            scan = ParserEngine().scan(self.data_ref)
+            if scan is not None:
+                return scan
+        if isinstance(self.data, pa.Table):
+            return pl.from_arrow(self.data).lazy()  # type: ignore[return-value]
+        if isinstance(self.data, dict):
+            frames = [frame for frame in self.data.values() if isinstance(frame, pl.DataFrame)]
+            if frames:
+                return frames[0].lazy()
+        try:
+            return pl.DataFrame(self.data).lazy()
+        except Exception as exc:
+            raise TypeError(f"Cannot convert {type(self.data).__name__} to Polars") from exc
+
     def to_polars(self) -> pl.DataFrame:
         data = self.data
 
@@ -244,12 +277,15 @@ class Dataset:
                 )
                 tables = tables["name"].to_list()
 
-                data = {}
-
-                for table in tables:
-                    data[table] = pl.read_database(query=f"SELECT * FROM {table}", connection=connection)  # noqa: S608  # nosec B608
-
-                data = pl.DataFrame(data)
+                frames = [pl.read_database(query=f"SELECT * FROM {table}", connection=connection) for table in tables]  # noqa: S608  # nosec B608
+                if not frames:
+                    raise HermesError("SQLite source has no tables")
+                if len(frames) == 1:
+                    data = frames[0]
+                else:
+                    data = frames[0].with_columns(pl.lit(tables[0]).alias("_table"))
+                    for table, frame in zip(tables[1:], frames[1:]):
+                        data = data.vstack(frame.with_columns(pl.lit(table).alias("_table")))
             finally:
                 connection.close()
 
@@ -257,13 +293,13 @@ class Dataset:
             raise NotImplementedError("HTTP sources are not supported yet; use hr.fetch()")
 
         else:
-            data = self.__load_file()
+            from hermes.parsing.engine import ParserEngine
+
+            engine = ParserEngine()
+            data = engine.scan(ref)
+            if data is None:
+                data = engine.parse(ref)
 
         self.data = data
         self.record("load", input_ref=ref)
         return self.data
-
-    def __load_file(self):
-        from hermes.parsing.engine import ParserEngine
-
-        return ParserEngine().parse(self.data_ref)
