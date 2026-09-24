@@ -128,7 +128,7 @@ def _dataset(args: argparse.Namespace) -> int:
         return 0
     result = hr.storage_info(args.name) if args.action == "info" else hr.delete(args.name)
     if not result.is_success():
-        return _fail(f"dataset {args.action}", result.error)
+        return _fail(f"dataset {args.action}", result.errors[0] if result.errors else "failure")
     if args.action == "delete":
         print(f"deleted {args.name}")
         return 0
@@ -143,6 +143,7 @@ def _dataset(args: argparse.Namespace) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hermes", description="Hermes data engine")
     parser.add_argument("--version", action="version", version="hermes 0.1")
+    parser.add_argument("--storage", default=None, help="storage root directory (default: configured root)")
     sub = parser.add_subparsers(dest="command")
 
     p_fetch = sub.add_parser("fetch", help="Fetch data from a connector or local file")
@@ -188,6 +189,10 @@ def app() -> None:
     if not getattr(args, "func", None):
         parser.print_help(sys.stdout)
         raise SystemExit(0)
+    if args.storage:
+        import hermes as hr
+
+        hr.configure(storage_root=args.storage)
     try:
         raise SystemExit(args.func(args))
     except HermesError as e:
