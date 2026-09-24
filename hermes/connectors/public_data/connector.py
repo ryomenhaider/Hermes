@@ -20,6 +20,8 @@ SIPRI_PATH = CURRENT_DIR / "lib" / "datasets" / "sipri.csv"
 
 
 class PUBLIC_DATASET:
+    canonical_schema = "economic.observation"
+
     def __init__(self) -> None:
         self._parser = ParserEngine()
 

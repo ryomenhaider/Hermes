@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 class FINNHUB(BaseConnector):
+    canonical_schema = "market.observation"
+
     BASE_URL = BASE_URL
 
     ENDPOINTS = ENDPOINTS

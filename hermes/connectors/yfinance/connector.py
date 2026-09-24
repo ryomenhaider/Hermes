@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 class Yfinance(BaseConnector):
+    canonical_schema = "market.observation"
+
     def __init__(
         self,
         cache: RawCache | None = None,

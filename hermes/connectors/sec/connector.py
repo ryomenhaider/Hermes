@@ -21,6 +21,8 @@ def sec_mapping(symbol: str) -> str:
 
 
 class SECEDGAR(BaseConnector):
+    canonical_schema = "financial.observation"
+
     def __init__(self, cache: RawCache | None = None):
         super().__init__(cache)
         self._email = get_cred("sec_email")

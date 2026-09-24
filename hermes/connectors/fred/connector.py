@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class FRED(BaseConnector):
+    canonical_schema = "economic.observation"
+
     def __init__(self, api: str, cache: RawCache | None = None):
         super().__init__(cache)
         self._url = "https://api.stlouisfed.org/fred/series/observations"

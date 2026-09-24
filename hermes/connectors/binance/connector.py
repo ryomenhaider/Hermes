@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class Binance(BaseConnector):
+    canonical_schema = "market.observation"
     def __init__(self, cache: RawCache | None = None):
         super().__init__(cache, retry_auth=True)
         self._spot_url = "https://api.binance.com"
