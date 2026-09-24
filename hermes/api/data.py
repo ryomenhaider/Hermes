@@ -9,12 +9,14 @@ import pyarrow as pa
 
 from hermes.api.entities import get_registry
 from hermes.core.dataset import Dataset
-from hermes.core.errors import HermesError, ParseError
+from hermes.core.errors import HermesError, ParseError, SchemaError
 from hermes.core.metadata import ColumnMetadata, InspectReport, MetaData, QualityInfo
 from hermes.normalization.context import NormalizationContext
 from hermes.normalization.engine import NormalizationEngine
 from hermes.normalization.rule import NormalizationRule
 from hermes.parsing.engine import ParserEngine
+from hermes.schemas.registry import get_registry as get_schema_registry
+from hermes.validation import SchemaCheck
 from hermes.validation.engine import validate as validate_frame
 from hermes.validation.result import ValidationResult
 
@@ -119,16 +121,28 @@ def normalize(
     return engine.normalize(data)
 
 
-def validate(data: object, rules: list | None = None) -> ValidationResult:
+def validate(
+    data: object,
+    rules: list | None = None,
+    schema: object | None = None,
+    context: object | None = None,
+) -> ValidationResult:
+    inherited_rules: list = list(rules or [])
+    if schema is not None:
+        schema_obj = get_schema_registry().get(schema) if isinstance(schema, str) else schema
+        if schema_obj is None:
+            raise SchemaError(f"Unknown schema {schema!r}")
+        expected = {f.name: f.type for f in schema_obj.fields if f.type not in ("list", "dict")}
+        inherited_rules.append(SchemaCheck(expected))
     if isinstance(data, Dataset):
-        result = validate_frame(data.data, rules=rules)
+        result = validate_frame(data.data, rules=inherited_rules, context=context)
         data.record(
             "validate",
-            params={"rules": _rule_labels(rules), "passed": result.passed, "errors": len(result.errors)},
+            params={"rules": _rule_labels(inherited_rules), "passed": result.passed, "errors": len(result.errors)},
             version=False,
         )
         return result
-    return validate_frame(data, rules=rules)
+    return validate_frame(data, rules=inherited_rules, context=context)
 
 
 def transform(data: object, fn: object | None = None, **kwargs: object) -> object:
