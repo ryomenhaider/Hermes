@@ -14,9 +14,9 @@ def _failure(exc: BaseException) -> Result:
     return result
 
 
-def save(dataset: Dataset, name: str | None = None, overwrite: bool = False) -> Result:
+def save(dataset: Dataset, name: str | None = None, overwrite: bool = False, format: str = "parquet") -> Result:
     try:
-        info = _backend().save(dataset, name=name, overwrite=overwrite)
+        info = _backend().save(dataset, name=name, overwrite=overwrite, format=format)
         return Result(
             status="success",
             data=info,
