@@ -4,7 +4,7 @@ from typing import Any, Literal, cast
 
 import polars as pl
 
-from hermes.constants import (
+from hermes.normalization.constants import (
     _CAST_TYPES,
     _CURRENCY_ALIASES,
     _DEFAULT_DATE_FORMATS,

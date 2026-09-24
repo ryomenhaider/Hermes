@@ -46,4 +46,15 @@ ENDPOINTS = {
     "symbol": "stock/symbol",
 }
 
-__all__ = ["FinnhubEndpoint", "FinnhubEndpoints", "BASE_URL", "ENDPOINTS"]
+FINNHUB_MAX_DAYS = {
+    "1": 7,
+    "5": 7,
+    "15": 30,
+    "30": 30,
+    "60": 30,
+    "D": 365,
+    "W": 365,
+    "M": 365,
+}
+
+__all__ = ["FinnhubEndpoint", "FinnhubEndpoints", "BASE_URL", "ENDPOINTS", "FINNHUB_MAX_DAYS"]

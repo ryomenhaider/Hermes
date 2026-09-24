@@ -6,9 +6,8 @@ import polars as pl
 
 from hermes.acquisition.cache import RawCache
 from hermes.connectors.base import BaseConnector
-from hermes.connectors.finnhub.mappings import BASE_URL, ENDPOINTS, FinnhubEndpoint
+from hermes.connectors.finnhub.mappings import BASE_URL, ENDPOINTS, FINNHUB_MAX_DAYS, FinnhubEndpoint
 from hermes.connectors.finnhub.parser import candles_to_dataframe
-from hermes.constants import FINNHUB_MAX_DAYS
 from hermes.core.errors import AcquisitionError
 from hermes.credentials.manager import get_cred
 from hermes.validation import NotNull

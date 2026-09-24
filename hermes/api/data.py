@@ -9,7 +9,6 @@ import polars.selectors as cs
 from hermes.core.dataset import Dataset
 from hermes.core.errors import HermesError
 from hermes.core.metadata import ColumnMetadata, InspectReport, MetaData, QualityInfo
-from hermes.core.result import Result
 from hermes.normalization.context import NormalizationContext
 from hermes.normalization.engine import NormalizationEngine
 from hermes.normalization.rule import NormalizationRule
@@ -89,13 +88,21 @@ def validate(data: object, rules: list | None = None) -> ValidationResult:
     return validate_frame(data, rules=rules)
 
 
-def validate_data(data: object, rules: list | None = None) -> ValidationResult:
-    return validate(data=data, rules=rules)
+def transform(data: object, fn: object | None = None, **kwargs: object) -> object:
+    if not callable(fn):
+        raise ValueError("transform requires a callable fn")
 
+    frame = data.data if isinstance(data, Dataset) else data
+    if frame is None:
+        raise HermesError("No data to transform")
 
-def transform(data: object, fn: object | None = None, **kwargs: object) -> Result:
+    transformed = fn(frame, **kwargs)
 
-    raise NotImplementedError()
+    if isinstance(data, Dataset):
+        data.data = transformed
+        data.record("transform", params={"fn": getattr(fn, "__name__", "transform")})
+        return data
+    return transformed
 
 
 def inspect(data: pl.DataFrame | pl.LazyFrame) -> InspectReport:
@@ -434,73 +441,4 @@ def profile(
         profiled_at=datetime.now(tz=UTC),
         quality=QualityInfo(completeness=completeness, duplicate_count=duplicate_count, anomaly_count=anomaly),
         deep_stats=heavy,
-    )
-
-    schema = ldf.collect_schema()
-    string_cols = [col for col, dtype in schema.items() if dtype == pl.String]
-    top_values_map = {}
-
-    for col in string_cols:
-        structs = (
-            ldf.select(pl.col(col).value_counts(sort=True).head(5))
-            .collect(engine="streaming")
-            .to_series()
-            .to_list()
-        )
-        top_values_map[col] = [(item[col], item["count"]) for item in structs if item is not None]
-
-    total_rows = int(ldf.select(pl.len()).collect(engine='streaming').item())
-
-    col_metadata = []
-    for col, dtype in schema.items():
-        is_numeric = dtype.is_numeric()
-        null_count = stats[f"{col}_null_count"]
-
-        col_metadata.append(
-            ColumnMetadata(
-                name=col,
-                dtype=str(dtype),
-                null_count=null_count,
-                null_ratio=float(null_count / total_rows) if total_rows > 0 else 0.0,
-                unique_count=stats[f"{col}_unique_count"],
-                min_value=stats.get(f"{col}_min") if is_numeric else None,
-                max_value=stats.get(f"{col}_max") if is_numeric else None,
-                mean=stats.get(f"{col}_mean") if is_numeric else None,
-                median=stats.get(f"{col}_median") if is_numeric else None,
-                std=stats.get(f"{col}_std") if is_numeric else None,
-                top_values=top_values_map.get(col, []),
-            )
-        )
-
-    null_df = ldf.select(pl.all().is_null().mean()).collect(engine='streaming')
-    completeness_map = null_df.select(pl.all().sub(1.0).abs()).row(0, named=True)
-
-    dup_rows = (
-        ldf.group_by(pl.all())
-        .agg(pl.len().alias("_n"))
-        .filter(pl.col("_n") > 1)
-        .select(pl.col("_n").sum())
-        .collect(engine='streaming')
-        .item()
-    )
-    duplicate_count = int(dup_rows)
-
-    data_quality = QualityInfo(
-        completeness=completeness_map,
-        duplicate_count=duplicate_count,
-        anomaly_count=anomaly_count(ldf),
-    )
-    _date_ranges = date_ranges(ldf)
-    _freq = get_freqs(ldf)
-
-    return MetaData(
-        row_count=total_rows,
-        column_count=len(schema),
-        columns=col_metadata,
-        date_range=_date_ranges[0] if _date_ranges else None,
-        frequency=_freq[0] if _freq else None,
-        source=source,
-        retrieved_at=datetime.now(tz=UTC),
-        profiled_at=datetime.now(tz=UTC),
-        quality=data_quality,
     )
