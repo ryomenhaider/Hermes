@@ -15,9 +15,24 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hermes — Data infrastructure for the modern world",
+  title: {
+    default: "Hermes — Data infrastructure for the modern world",
+    template: "%s · Hermes",
+  },
   description:
-    "Hermes is a modern data infrastructure SDK for acquiring, processing, and serving structured and unstructured data at scale — from 15+ sources.",
+    "Hermes is a modern data infrastructure platform for acquiring, processing, and serving structured and unstructured data at scale.",
+  openGraph: {
+    title: "Hermes — Data infrastructure for the modern world",
+    description:
+      "Acquire, normalize, validate and serve data from multiple sources — with provenance built in.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hermes — Data infrastructure for the modern world",
+    description:
+      "Acquire, normalize, validate and serve data from multiple sources — with provenance built in.",
+  },
 };
 
 export default function RootLayout({
