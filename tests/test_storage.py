@@ -322,21 +322,22 @@ def test_hr_workflow(hr_store):
     assert result.is_success()
     assert result.data.rows == 4
 
-    assert hr.list_datasets() == ["world_bank_gdp"]
-    assert hr.exists("world_bank_gdp")
+    assert hr.list_datasets().data == ["world_bank_gdp"]
+    assert hr.exists("world_bank_gdp").data is True
 
-    info = hr.storage_info("world_bank_gdp")
+    info = hr.storage_info("world_bank_gdp").data
     assert info.dataset == "world_bank_gdp"
     assert info.rows == 4
 
-    loaded = hr.load("world_bank_gdp")
+    loaded = hr.load("world_bank_gdp").data
     assert isinstance(loaded, Dataset)
     assert_frame_equal(loaded.data, dataset.data)
 
-    hr.delete("world_bank_gdp")
-    assert not hr.exists("world_bank_gdp")
-    with pytest.raises(DatasetNotFoundError):
-        hr.load("world_bank_gdp")
+    assert hr.delete("world_bank_gdp").is_success()
+    assert hr.exists("world_bank_gdp").data is False
+    missing = hr.load("world_bank_gdp")
+    assert missing.is_failure()
+    assert missing.errors[0].code == "DatasetNotFoundError"
 
 
 def test_hr_save_failure_returns_result(hr_store):
@@ -351,15 +352,16 @@ def test_hr_save_overwrite(hr_store):
     hr.save(make_dataset(rows=4))
     result = hr.save(make_dataset(rows=1), overwrite=True)
     assert result.is_success()
-    assert hr.load("world_bank_gdp").data.height == 1
+    assert hr.load("world_bank_gdp").data.data.height == 1
 
 
 def test_hr_storage_info_encodeable(hr_store):
     hr.save(make_dataset())
-    info = hr.storage_info("world_bank_gdp")
+    info = hr.storage_info("world_bank_gdp").data
     json.dumps(dataclasses.asdict(info), default=str)
 
 
 def test_hr_load_missing_raises(hr_store):
-    with pytest.raises(DatasetNotFoundError):
-        hr.load("missing")
+    result = hr.load("missing")
+    assert result.is_failure()
+    assert result.errors[0].code == "DatasetNotFoundError"

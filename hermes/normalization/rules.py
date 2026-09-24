@@ -271,9 +271,9 @@ def _str_to_datetime(col: str, fmt: str) -> pl.Expr:
 class NormalizeCountry(NormalizationRule):
     def __init__(self, field: str, extra_aliases: dict[str, str] | None = None) -> None:
         self.field = field
-        from hermes.connectors.public_data.connector import _country_aliases
+        from hermes.resources.countries import country_aliases
 
-        self.aliases = dict(_country_aliases())
+        self.aliases = dict(country_aliases())
         if extra_aliases:
             for alias, code in extra_aliases.items():
                 self.aliases[alias.lower()] = code

@@ -5,9 +5,10 @@ from typing import Any
 
 import polars as pl
 import polars.selectors as cs
+import pyarrow as pa
 
 from hermes.core.dataset import Dataset
-from hermes.core.errors import HermesError
+from hermes.core.errors import HermesError, ParseError
 from hermes.core.metadata import ColumnMetadata, InspectReport, MetaData, QualityInfo
 from hermes.normalization.context import NormalizationContext
 from hermes.normalization.engine import NormalizationEngine
@@ -20,25 +21,46 @@ logger = logging.getLogger(__name__)
 
 
 def parse(data: object, format: str | None = None, **kwargs: object) -> Dataset:
+    ref = None
     if isinstance(data, Dataset):
-        if isinstance(data.data, (pl.DataFrame, pl.LazyFrame)):
-            pass
-        elif data.data is not None:
-            data.data = _parse_or_scan(data.data, format=format, **kwargs)
-        elif data.data_ref is not None:
-            data.data = _parse_or_scan(data.data_ref, format=format, **kwargs)
-        data.record("parse", input_ref=str(data.data_ref) if data.data_ref else None, params={"format": format})
-        return data
+        dataset = data
+        source = dataset.data if dataset.data is not None else dataset.data_ref
+        input_ref = str(dataset.data_ref) if dataset.data_ref else None
+    else:
+        dataset = None
+        source = data
+        input_ref = str(data) if isinstance(data, (str, Path)) else None
 
-    ref = data if isinstance(data, (str, Path)) else None
-    df = _parse_or_scan(data, format=format, **kwargs)
-    name = Path(ref).stem if ref else "dataset"
-    ds = Dataset(name=name, data=df, data_ref=ref)
-    ds.record("parse", input_ref=str(ref) if ref else None, params={"format": format})
+    df = _frame_or_parse(source, format=format, **kwargs)
+
+    if dataset is not None:
+        if source is None:
+            dataset.record("parse", input_ref=input_ref, params={"format": format})
+            return dataset
+        dataset.data = df
+        dataset.record("parse", input_ref=input_ref, params={"format": format})
+        return dataset
+
+    name = Path(data).stem if isinstance(data, (str, Path)) else "dataset"  # type: ignore[arg-type]
+    ds = Dataset(name=name, data=df, data_ref=input_ref)
+    ds.record("parse", input_ref=input_ref, params={"format": format})
     return ds
 
 
-def _parse_or_scan(source: object, format: str | None = None, **kwargs: object):
+def _frame_or_parse(source: object, format: str | None = None, **kwargs: object):
+    if isinstance(source, pl.LazyFrame):
+        return source
+    if isinstance(source, pl.DataFrame):
+        return source
+    if isinstance(source, pa.Table):
+        return pl.from_arrow(source)
+    if isinstance(source, dict) or (
+        isinstance(source, (list, tuple)) and source and isinstance(source[0], dict)
+    ):
+        try:
+            return pl.DataFrame(source)
+        except Exception as exc:  # noqa: BLE001 - wrap user data into a parse error
+            raise ParseError(f"Could not build a frame from {type(source).__name__}: {exc}") from exc
     if isinstance(source, (str, Path)) and format is None:
         scanned = ParserEngine().scan(source)
         if scanned is not None:

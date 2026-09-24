@@ -1,6 +1,8 @@
 import hashlib
 import io
+import os
 import sqlite3
+import tempfile
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,15 +19,25 @@ from hermes.core.versioning import DataVersion
 
 
 def frame_checksum(data: object) -> str:
-    # ponytail: lazy frames are hashed by query plan, not content — hashing 33GB
-    # of rows on every record() would defeat lazy loading. Swap to a streaming
-    # content hash if version integrity requires it.
-    if isinstance(data, pl.LazyFrame):
-        return hashlib.sha256(data.explain().encode()).hexdigest()
+    """Content hash of a frame (streamed to disk for lazy frames)."""
     if isinstance(data, pl.DataFrame):
         buf = io.BytesIO()
         data.write_ipc(buf)
         return hashlib.sha256(buf.getvalue()).hexdigest()
+    if isinstance(data, pl.LazyFrame):
+        # Streaming row-group sink keeps memory bounded; the hash covers the
+        # full materialized content, not the query plan.
+        fd, path = tempfile.mkstemp(suffix=".ipc")
+        try:
+            data.sink_ipc(path)
+            digest = hashlib.sha256()
+            with open(path, "rb") as handle:
+                for block in iter(lambda: handle.read(1 << 20), b""):
+                    digest.update(block)
+            return digest.hexdigest()
+        finally:
+            os.close(fd)
+            os.unlink(path)
     return hashlib.sha256(repr(data).encode()).hexdigest()
 
 
@@ -104,7 +116,7 @@ class Dataset:
 
     def __getattr__(self, name: str) -> object:
         data = self.__dict__.get("data")
-        if data is None or name.startswith("__"):
+        if not isinstance(data, (pl.DataFrame, pl.LazyFrame)) or name.startswith("__"):
             raise AttributeError(name)
         return getattr(data, name)
 
@@ -203,7 +215,16 @@ class Dataset:
             scan = ParserEngine().scan(self.data_ref)
             if scan is not None:
                 return scan
-        return pl.DataFrame(self.data).lazy()
+        if isinstance(self.data, pa.Table):
+            return pl.from_arrow(self.data).lazy()  # type: ignore[return-value]
+        if isinstance(self.data, dict):
+            frames = [frame for frame in self.data.values() if isinstance(frame, pl.DataFrame)]
+            if frames:
+                return frames[0].lazy()
+        try:
+            return pl.DataFrame(self.data).lazy()
+        except Exception as exc:
+            raise TypeError(f"Cannot convert {type(self.data).__name__} to Polars") from exc
 
     def to_polars(self) -> pl.DataFrame:
         data = self.data
@@ -256,12 +277,15 @@ class Dataset:
                 )
                 tables = tables["name"].to_list()
 
-                data = {}
-
-                for table in tables:
-                    data[table] = pl.read_database(query=f"SELECT * FROM {table}", connection=connection)  # noqa: S608  # nosec B608
-
-                data = pl.DataFrame(data)
+                frames = [pl.read_database(query=f"SELECT * FROM {table}", connection=connection) for table in tables]  # noqa: S608  # nosec B608
+                if not frames:
+                    raise HermesError("SQLite source has no tables")
+                if len(frames) == 1:
+                    data = frames[0]
+                else:
+                    data = frames[0].with_columns(pl.lit(tables[0]).alias("_table"))
+                    for table, frame in zip(tables[1:], frames[1:]):
+                        data = data.vstack(frame.with_columns(pl.lit(table).alias("_table")))
             finally:
                 connection.close()
 
