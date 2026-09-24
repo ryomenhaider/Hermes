@@ -1,3 +1,4 @@
+from hermes.entities.aliases import add_alias, list_aliases, resolve_alias
 from hermes.entities.models import (
     Entity,
     EntityAlias,
@@ -17,4 +18,7 @@ __all__ = [
     "EntityRelationship",
     "EntityMatch",
     "EntityRegistry",
+    "add_alias",
+    "resolve_alias",
+    "list_aliases",
 ]

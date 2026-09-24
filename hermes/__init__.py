@@ -13,6 +13,7 @@ from hermes.api.data import (
     normalize,
     parse,
     profile,
+    resolve_data,
     transform,
     validate,
 )
@@ -68,6 +69,7 @@ __all__ = [
     "get_freqs",
     "date_ranges",
     "anomaly_count",
+    "resolve_data",
     # Datasets
     "Dataset",
     # Entities

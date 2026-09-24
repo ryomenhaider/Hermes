@@ -7,6 +7,7 @@ import polars as pl
 import polars.selectors as cs
 import pyarrow as pa
 
+from hermes.api.entities import get_registry
 from hermes.core.dataset import Dataset
 from hermes.core.errors import HermesError, ParseError
 from hermes.core.metadata import ColumnMetadata, InspectReport, MetaData, QualityInfo
@@ -18,6 +19,26 @@ from hermes.validation.engine import validate as validate_frame
 from hermes.validation.result import ValidationResult
 
 logger = logging.getLogger(__name__)
+
+_ENTITY_NEEDS = {
+    "ticker": "company",
+    "symbol": "security",
+    "instrument": "security",
+    "isin": "security",
+    "cusip": "security",
+    "cik": "company",
+    "cik_str": "company",
+    "iso3": "country",
+    "iso_code": "country",
+    "country_code": "country",
+    "country_id": "country",
+    "country": "country",
+}
+
+
+def _detect_needs(data: pl.DataFrame | pl.LazyFrame) -> list[tuple[str, str]]:
+    columns = data.collect_schema().names() if isinstance(data, pl.LazyFrame) else data.columns
+    return [(col, _ENTITY_NEEDS[col.lower()]) for col in columns if col.lower() in _ENTITY_NEEDS]
 
 
 def parse(data: object, format: str | None = None, **kwargs: object) -> Dataset:
@@ -127,9 +148,12 @@ def transform(data: object, fn: object | None = None, **kwargs: object) -> objec
     return transformed
 
 
-def inspect(data: pl.DataFrame | pl.LazyFrame) -> InspectReport:
+def inspect(data: pl.DataFrame | pl.LazyFrame | Dataset) -> InspectReport:
     if data is None:
         raise HermesError("No data provided to inspect()")
+
+    if isinstance(data, Dataset):
+        data = data.data
 
     if isinstance(data, pl.LazyFrame):
         schema = data.collect_schema()
@@ -142,6 +166,7 @@ def inspect(data: pl.DataFrame | pl.LazyFrame) -> InspectReport:
             column_count=len(columns),
             columns=columns,
             sample=sample,
+            needs=_detect_needs(data),
         )
 
     if not isinstance(data, pl.DataFrame):
@@ -155,6 +180,7 @@ def inspect(data: pl.DataFrame | pl.LazyFrame) -> InspectReport:
         column_count=data.width,
         columns=columns,
         sample=data.head(5).to_dicts(),
+        needs=_detect_needs(data),
     )
 
 
@@ -289,13 +315,16 @@ def _lazy_from_path(path: Path) -> pl.LazyFrame:
 
 
 def profile(
-    data: pl.DataFrame | pl.LazyFrame | None = None,
+    data: pl.DataFrame | pl.LazyFrame | Dataset | None = None,
     path: Path | None = None,
     source: str | None = None,
 ) -> MetaData:
     footer = None
     heavy = False
     budget_ok = False
+
+    if isinstance(data, Dataset):
+        data = data.data
 
     if path is not None and Path(path).suffix.lower() == ".parquet":
         parquet_path = Path(path)
@@ -464,3 +493,54 @@ def profile(
         quality=QualityInfo(completeness=completeness, duplicate_count=duplicate_count, anomaly_count=anomaly),
         deep_stats=heavy,
     )
+
+
+def resolve_data(
+    data: object,
+    keys: list[tuple[str, str]] | None = None,
+) -> object:
+    """Resolve known entity-key columns (ticker, iso3, cik, ...) to HRM entity ids.
+
+    Adds a ``<column>_entity_id`` column per key; unmatched values resolve to null.
+    """
+    frame = data.data if isinstance(data, Dataset) else data
+    if not keys:
+        keys = _detect_needs(frame)
+    if not keys:
+        raise HermesError("No entities to resolve: pass keys=[(column, entity_type), ...]")
+
+    registry = get_registry()
+    expr: list[pl.Expr] = []
+    for column, entity_type in keys:
+        if column not in (frame.collect_schema().names() if isinstance(frame, pl.LazyFrame) else frame.columns):
+            continue
+        values = (
+            frame.select(pl.col(column).unique().cast(pl.Utf8, strict=False))
+            .collect(engine="streaming")
+            .to_series()
+            .to_list()
+            if isinstance(frame, pl.LazyFrame)
+            else frame.select(pl.col(column).unique().cast(pl.Utf8, strict=False)).to_series().to_list()
+        )
+        mapping: dict[str, str] = {}
+        for value in values:
+            if value is None or value == "":
+                continue
+            entity = None
+            try:
+                entity = registry.resolve(str(value), entity_type=entity_type)
+            except Exception:  # noqa: BLE001 - per-key tolerance
+                continue
+            if entity is not None:
+                mapping[value] = entity.id
+        expr.append(pl.col(column).cast(pl.Utf8, strict=False).replace_strict(mapping, default=None).alias(f"{column}_entity_id"))
+
+    if not expr:
+        raise HermesError("No resolvable entity-key columns found in the data")
+    resolved = frame.with_columns(expr)
+
+    if isinstance(data, Dataset):
+        data.data = resolved
+        data.record("resolve_data", params={"keys": [f"{c}/{t}" for c, t in keys]})
+        return data
+    return resolved

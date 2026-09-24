@@ -54,6 +54,8 @@ class InspectReport:
 
     columns: list[tuple[str, str]] = field(default_factory=list)
 
+    needs: list[tuple[str, str]] = field(default_factory=list)
+
     stored_metadata: MetaData | None = None
     provenance: Provenance | None = None
     lineage: Lineage | None = None
