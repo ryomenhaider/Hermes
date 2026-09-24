@@ -1,5 +1,6 @@
 import argparse
 import dataclasses
+import getpass
 import json
 import sys
 from pathlib import Path
@@ -97,7 +98,10 @@ def _inspect(args: argparse.Namespace) -> int:
     import hermes as hr
 
     report = hr.inspect(_loaded(args.name))
-    print(f"Inspect: {args.name}  rows: {report.row_count:,}  cols: {report.column_count}  needs: {report.needs or '-'}")
+    print(
+        f"Inspect: {args.name}  rows: {report.row_count:,}  "
+        f"cols: {report.column_count}  needs: {report.needs or '-'}"
+    )
     return 0
 
 
@@ -140,6 +144,38 @@ def _dataset(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cred(args: argparse.Namespace) -> int:
+    from hermes.credentials import manager
+    from hermes.credentials.storage import CredentialError, init_credentials
+
+    try:
+        if args.action == "init":
+            print(f"Credentials initialized at {init_credentials()}")
+        elif args.action == "set":
+            value = getpass.getpass("Credential value: ")
+            confirm = getpass.getpass("Confirm credential value: ")
+            if value != confirm:
+                return _fail("cred set", "values did not match")
+            manager.set_cred(args.name, value)
+            print(f"Credential '{args.name}' saved.")
+        elif args.action == "get":
+            value = manager.get_cred(args.name)
+            print(value if args.show else f"{args.name}: ********")
+        elif args.action == "list":
+            creds = manager.list_creds()
+            if not creds:
+                print("No credentials stored.")
+            else:
+                for name in creds:
+                    print(name)
+        elif args.action == "delete":
+            manager.delete_cred(args.name)
+            print(f"Credential '{args.name}' deleted.")
+    except CredentialError as e:
+        return _fail("cred", e)
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hermes", description="Hermes data engine")
     parser.add_argument("--version", action="version", version="hermes 0.1")
@@ -178,6 +214,23 @@ def _build_parser() -> argparse.ArgumentParser:
     p_delete.add_argument("name")
     p_delete.set_defaults(func=_dataset)
 
+    p_cred = sub.add_parser("cred", help="Manage Hermes credentials")
+    c_sub = p_cred.add_subparsers(dest="action", required=True)
+    c_init = c_sub.add_parser("init", help="Initialize the credential store")
+    c_init.set_defaults(func=_cred)
+    c_set = c_sub.add_parser("set", help="Save a credential")
+    c_set.add_argument("name")
+    c_set.set_defaults(func=_cred)
+    c_get = c_sub.add_parser("get", help="Show whether a credential exists (or its value with --show)")
+    c_get.add_argument("name")
+    c_get.add_argument("--show", action="store_true", help="print the credential value")
+    c_get.set_defaults(func=_cred)
+    c_list = c_sub.add_parser("list", help="List credential names")
+    c_list.set_defaults(func=_cred)
+    c_delete = c_sub.add_parser("delete", help="Delete a credential")
+    c_delete.add_argument("name")
+    c_delete.set_defaults(func=_cred)
+
     return parser
 
 
@@ -199,11 +252,6 @@ def app() -> None:
         raise SystemExit(_fail("error", e))
     except Exception as e:  # noqa: BLE001 - CLI boundary
         raise SystemExit(_fail("error", e))
-
-
-def _fail(action: str, error: object) -> int:
-    print(f"hermes: {action}: {error}", file=sys.stderr)
-    return 1
 
 
 if __name__ == "__main__":
