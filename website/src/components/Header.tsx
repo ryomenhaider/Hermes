@@ -43,6 +43,9 @@ export function Header() {
             <a
               key={l.label}
               href={l.href}
+              target="_blank"
+  rel="noopener noreferrer"
+              
               className="text-sm font-medium text-gray-bright transition-colors duration-150 hover:text-teal"
             >
               {l.label}
@@ -80,6 +83,8 @@ export function Header() {
                 <a
                   key={l.label}
                   href={l.href}
+                  target="_blank"
+  rel="noopener noreferrer"
                   onClick={() => setOpen(false)}
                   className="rounded-md px-2 py-2.5 text-sm font-medium text-gray-bright transition-colors hover:bg-white/[0.04] hover:text-teal"
                 >

@@ -60,7 +60,7 @@ export function DocsPreview() {
                       {item.header}
                     </p>
                   ) : (
-                   <p
+  <p
   key={item.label}
   className={`cursor-default rounded-sm px-2 py-1 text-sm ${
     item.label === "Introduction"

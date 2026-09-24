@@ -25,14 +25,17 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
-    >
-      <body className="min-h-screen bg-midnight text-offwhite antialiased">
-        {children}
-      </body>
-    </html>
-  );
+return (
+  <html
+    lang="en"
+    className={`${inter.variable} ${jetbrainsMono.variable}`}
+  >
+    <body className="min-h-screen bg-midnight text-offwhite antialiased">
+      <a href="#main-content" className="skip-to-content">
+        Skip to content
+      </a>
+      {children}
+    </body>
+  </html>
+);
 }

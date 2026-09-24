@@ -71,3 +71,7 @@ body {
 :focus:not(:focus-visible) {
   outline: none;
 }
+/* Offset for sticky header when using skip-to-content / anchors */
+#main-content {
+  scroll-margin-top: 5rem;
+}
