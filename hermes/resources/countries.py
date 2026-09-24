@@ -38,6 +38,11 @@ def country_aliases() -> dict[str, str]:
     return aliases
 
 
+def countries_frame() -> pl.DataFrame:
+    """All country rows (alpha-2/3, names) from the bundled dataset."""
+    return _countries()
+
+
 def iso3_to_iso2(iso3_code: str) -> str:
     return iso3_index().get(iso3_code.upper(), "Not Found")
 
