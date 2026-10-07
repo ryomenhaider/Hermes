@@ -86,7 +86,7 @@ export function HowItWorks() {
           start: "top top",
           end: "bottom bottom",
           onUpdate: (self) => {
-            if (fill.current) gsap.set(fill.current, { scaleX: self.progress });
+            if (fill.current) gsap.set(fill.current, { scaleY: self.progress });
             const next = Math.min(
               PIPELINE.length - 1,
               Math.floor(self.progress * PIPELINE.length),
@@ -108,7 +108,7 @@ export function HowItWorks() {
           index="01"
           kicker="Platform"
           title="Seven stages. One interface."
-          lede="Every dataset moves through the same pipeline, whatever it started as. Scroll to walk the stages. Each one is a single module with a single job."
+          lede="Every dataset moves through the same pipeline, whatever it started as. Scroll or select a stage. Each one is a single module with a single job."
         />
       </div>
 
@@ -128,11 +128,15 @@ export function HowItWorks() {
                     const on = i === active;
                     return (
                       <li key={stage.id}>
-                        <div
-                          className={`flex items-center gap-4 border-l-2 py-3 pl-5 transition-all duration-300 ${
+                        <button
+                          type="button"
+                          onClick={() => setActive(i)}
+                          aria-current={on ? "step" : undefined}
+                          aria-label={`Stage ${i + 1}: ${stage.label}`}
+                          className={`flex w-full items-center gap-4 border-l-2 py-3 pl-5 text-left transition-all duration-300 ${
                             on
                               ? "border-teal-bright bg-midnight/60"
-                              : "border-transparent opacity-45"
+                              : "border-transparent opacity-45 hover:opacity-80"
                           }`}
                         >
                           <Icon
@@ -149,7 +153,7 @@ export function HowItWorks() {
                           >
                             {stage.label}
                           </span>
-                        </div>
+                        </button>
                       </li>
                     );
                   })}
@@ -201,7 +205,7 @@ export function HowItWorks() {
         </ol>
       </div>
 
-      {/* Evidence band: the pipeline's three outputs, side by side */}
+      {/* Evidence band */}
       <div className="border-t border-hairline">
         <div className="shell grid grid-cols-1 gap-px bg-hairline lg:grid-cols-3">
           <motion.div
@@ -209,7 +213,7 @@ export function HowItWorks() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6, ease: "easeOut" }}
-            className="bg-midnight p-6"
+            className="panel brackets rounded-none border-0 bg-midnight p-6"
           >
             <p className="label text-gray">Normalized output</p>
             <table className="mt-4 w-full border-collapse font-mono text-[11px]">
@@ -239,7 +243,7 @@ export function HowItWorks() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6, ease: "easeOut" }}
-            className="bg-midnight p-6"
+            className="panel brackets rounded-none border-0 bg-midnight p-6"
           >
             <p className="label text-gray">Entity resolution</p>
             <div className="mt-4 h-40">
@@ -253,7 +257,7 @@ export function HowItWorks() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.6, ease: "easeOut" }}
-            className="panel rounded-none border-0 p-6"
+            className="panel brackets rounded-none border-0 bg-midnight p-6"
           >
             <p className="label text-gray">The whole call</p>
             <pre className="mt-4 overflow-x-auto">
