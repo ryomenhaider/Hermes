@@ -1,12 +1,12 @@
 from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
-import polars as pl
-
 try:
     import pyarrow as pa
+    import polars as pl
 except ImportError:
-    pa = None
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
+
 
 from hermes.normalization.context import NormalizationContext
 from hermes.normalization.errors import NormalizationError, RuleConfigurationError, RuleExecutionError

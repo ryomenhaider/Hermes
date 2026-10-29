@@ -1,4 +1,7 @@
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 EMPTY_COLS = ["date", "indicator_id", "country", "value", "source"]
 

@@ -89,7 +89,12 @@ mod tests {
 
     #[test]
     fn unimplemented_commands_exit_nonzero() {
-        for cmd in [Command::Fetch, Command::Inspect, Command::Dataset, Command::Entity] {
+        for cmd in [
+            Command::Fetch,
+            Command::Inspect,
+            Command::Dataset,
+            Command::Entity,
+        ] {
             assert_eq!(commands::exec(cmd), 1);
         }
     }

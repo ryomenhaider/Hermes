@@ -3,7 +3,10 @@ from datetime import timedelta
 from functools import partial
 from pathlib import Path
 
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 from hermes.acquisition.cache import RawCache
 from hermes.connectors.base import BaseConnector

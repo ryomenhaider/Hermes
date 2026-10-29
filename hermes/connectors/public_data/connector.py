@@ -1,7 +1,10 @@
 import logging
 from pathlib import Path
 
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 from hermes.parsing.engine import ParserEngine
 

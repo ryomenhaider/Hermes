@@ -2,8 +2,8 @@
 
 use std::io::{Read, Write};
 use std::net::{IpAddr, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -139,14 +139,18 @@ fn default_headers_and_user_agent_are_sent() {
     serve(
         move |request| {
             let lower = request.to_lowercase();
-            if lower.contains("accept: application/json") && lower.contains("user-agent: hermes-http") {
+            if lower.contains("accept: application/json")
+                && lower.contains("user-agent: hermes-http")
+            {
                 seen_thread.store(1, Ordering::SeqCst);
             }
             http_response(200, "OK", &[], "")
         },
         listener,
     );
-    let client = HttpClient::builder().default_header("Accept", "application/json").build();
+    let client = HttpClient::builder()
+        .default_header("Accept", "application/json")
+        .build();
     client.get(&url).send().unwrap();
     assert_eq!(seen.load(Ordering::SeqCst), 1);
 }
@@ -176,13 +180,44 @@ fn query_parameters_are_url_encoded() {
 }
 
 #[test]
+fn duplicate_response_headers_are_all_returned() {
+    let (listener, url) = listen();
+    serve(
+        move |_| {
+            http_response(
+                200,
+                "OK",
+                &[("Set-Cookie", "a=1"), ("Set-Cookie", "b=2")],
+                "",
+            )
+        },
+        listener,
+    );
+    let client = HttpClient::new();
+    let response = client.get(&url).send().unwrap();
+    let headers = response.headers();
+    let cookies: Vec<&str> = headers
+        .iter()
+        .filter(|h| h.name.eq_ignore_ascii_case("set-cookie"))
+        .map(|h| h.value.as_str())
+        .collect();
+    assert_eq!(cookies, ["a=1", "b=2"]);
+}
+
+#[test]
 fn non_2xx_status_is_reported_with_body() {
     let (listener, url) = listen();
-    serve(move |_| http_response(404, "Not Found", &[], "missing"), listener);
+    serve(
+        move |_| http_response(404, "Not Found", &[], "missing"),
+        listener,
+    );
     let client = HttpClient::new();
     let response = client.get(&url).send().unwrap();
     assert_eq!(response.status(), 404);
-    assert!(matches!(response.error_for_status(), Err(HermesHttpError::Http { .. })));
+    assert!(matches!(
+        response.error_for_status(),
+        Err(HermesHttpError::Http { .. })
+    ));
     assert_eq!(response.text().unwrap(), "missing");
 }
 
@@ -216,7 +251,9 @@ fn times_out_when_server_is_unresponsive() {
         },
         listener,
     );
-    let client = HttpClient::builder().timeout(Duration::from_millis(150)).build();
+    let client = HttpClient::builder()
+        .timeout(Duration::from_millis(150))
+        .build();
     let err = client.get(&url).send().unwrap_err();
     assert!(matches!(err, HermesHttpError::Timeout), "got {err:?}");
 }
@@ -342,9 +379,8 @@ fn make_tls_keypair() -> (rcgen::Certificate, rcgen::KeyPair) {
 fn start_https_server() -> (String, rcgen::Certificate, rcgen::KeyPair) {
     // rustls 0.23 needs an explicit process default crypto provider; ring is
     // what ureq already enables, so reuse it. Installing twice is harmless.
-    let _ = rustls::crypto::CryptoProvider::install_default(
-        rustls::crypto::ring::default_provider(),
-    );
+    let _ =
+        rustls::crypto::CryptoProvider::install_default(rustls::crypto::ring::default_provider());
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("https://{}/", listener.local_addr().unwrap());
     let (cert, key_pair) = make_tls_keypair();
@@ -359,8 +395,7 @@ fn start_https_server() -> (String, rcgen::Certificate, rcgen::KeyPair) {
 
     thread::spawn(move || {
         let (mut tcp, _) = listener.accept().unwrap();
-        let mut conn =
-            rustls::ServerConnection::new(std::sync::Arc::new(server_config)).unwrap();
+        let mut conn = rustls::ServerConnection::new(std::sync::Arc::new(server_config)).unwrap();
         let mut request = Vec::new();
         let mut buf = [0u8; 4096];
         loop {
@@ -396,7 +431,8 @@ fn https_rejects_untrusted_certificate() {
 
 #[test]
 fn https_succeeds_with_trusted_certificate() {
-    let _ = rustls::crypto::CryptoProvider::install_default(rustls::crypto::ring::default_provider());
+    let _ =
+        rustls::crypto::CryptoProvider::install_default(rustls::crypto::ring::default_provider());
     let (url, cert, _) = start_https_server();
     let mut roots = rustls::RootCertStore::empty();
     roots.add(cert.der().clone()).unwrap();

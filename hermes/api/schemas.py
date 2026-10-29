@@ -1,4 +1,7 @@
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 from hermes.core.errors import SchemaError
 from hermes.core.result import Result

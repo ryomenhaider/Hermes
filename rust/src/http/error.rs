@@ -50,7 +50,9 @@ impl fmt::Display for HermesHttpError {
             HermesHttpError::Response(m) => write!(f, "invalid response: {m}"),
             HermesHttpError::Io(m) => write!(f, "I/O error: {m}"),
             HermesHttpError::Json(m) => write!(f, "invalid JSON: {m}"),
-            HermesHttpError::Http { status, message } => write!(f, "HTTP status {status}: {message}"),
+            HermesHttpError::Http { status, message } => {
+                write!(f, "HTTP status {status}: {message}")
+            }
         }
     }
 }
@@ -60,9 +62,9 @@ impl Error for HermesHttpError {}
 impl From<ureq::Error> for HermesHttpError {
     fn from(err: ureq::Error) -> Self {
         match err {
-            ureq::Error::Status(status, _) => HermesHttpError::Http {
+            ureq::Error::Status(status, response) => HermesHttpError::Http {
                 status,
-                message: format!("HTTP status {status}"),
+                message: response.status_text().to_string(),
             },
             ureq::Error::Transport(t) => t.into(),
         }
@@ -97,9 +99,9 @@ impl From<ureq::Transport> for HermesHttpError {
             ureq::ErrorKind::InsecureRequestHttpsOnly | ureq::ErrorKind::InvalidProxyUrl => {
                 HermesHttpError::Request(message)
             }
-            ureq::ErrorKind::BadStatus | ureq::ErrorKind::BadHeader | ureq::ErrorKind::ProxyUnauthorized => {
-                HermesHttpError::Response(t.to_string())
-            }
+            ureq::ErrorKind::BadStatus
+            | ureq::ErrorKind::BadHeader
+            | ureq::ErrorKind::ProxyUnauthorized => HermesHttpError::Response(t.to_string()),
             ureq::ErrorKind::HTTP => HermesHttpError::Http {
                 status: 0,
                 message: t.to_string(),
@@ -117,12 +119,12 @@ impl From<serde_json::Error> for HermesHttpError {
 /// True if any error in the chain is an `io::Error` signalling a timeout.
 fn timed_out(t: &ureq::Transport) -> bool {
     each_source(t, |err| {
-        if let Some(io_err) = err.downcast_ref::<io::Error>() {
-            if matches!(io_err.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) {
-                return true;
-            }
-        }
-        false
+        err.downcast_ref::<io::Error>().is_some_and(|io_err| {
+            matches!(
+                io_err.kind(),
+                io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+            )
+        })
     })
 }
 
@@ -134,17 +136,19 @@ fn has_rustls_source(t: &ureq::Transport) -> bool {
         }
         // rustls::Error is often buried as the payload of an io::Error, which
         // `source()` does not surface; `get_ref()` does.
-        if let Some(io_err) = err.downcast_ref::<io::Error>() {
-            if io_err.get_ref().map_or(false, |r| r.downcast_ref::<rustls::Error>().is_some()) {
-                return true;
-            }
-        }
-        false
+        err.downcast_ref::<io::Error>().is_some_and(|io_err| {
+            io_err
+                .get_ref()
+                .is_some_and(|inner| inner.downcast_ref::<rustls::Error>().is_some())
+        })
     })
 }
 
 /// Walks the transport's source chain (plus each `io::Error`'s own payload).
-fn each_source(t: &ureq::Transport, f: impl Fn(&(dyn std::error::Error + 'static)) -> bool) -> bool {
+fn each_source(
+    t: &ureq::Transport,
+    f: impl Fn(&(dyn std::error::Error + 'static)) -> bool,
+) -> bool {
     let mut current = t.source();
     while let Some(source) = current {
         if f(source) {

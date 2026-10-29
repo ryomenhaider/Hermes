@@ -7,10 +7,12 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-import polars as pl
-import pyarrow as pa
-
+try:
+    import polars as pl
+    import pyarrow as pa
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
+    
 import hermes._rust as _rust
 from hermes.core.errors import HermesError
 from hermes.core.lineage import Lineage, LineageStep

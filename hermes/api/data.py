@@ -2,10 +2,12 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
-import polars as pl
-import polars.selectors as cs
-import pyarrow as pa
+try:
+    import polars as pl
+    import polars.selectors as cs
+    import pyarrow as pa
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 from hermes.core.dataset import Dataset
 from hermes.core.errors import HermesError, ParseError, SchemaError
