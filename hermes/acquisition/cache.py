@@ -5,7 +5,10 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 logger = logging.getLogger(__name__)
 

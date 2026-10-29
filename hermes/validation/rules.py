@@ -2,7 +2,10 @@ import datetime
 import re
 from typing import Any
 
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 from hermes.validation.errors import RuleConfigurationError, RuleExecutionError
 from hermes.validation.result import RuleResult, Violation

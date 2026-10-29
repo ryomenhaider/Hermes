@@ -2,7 +2,10 @@ import math
 import re
 from typing import Any, Literal, cast
 
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 from hermes.normalization.constants import (
     _CAST_TYPES,

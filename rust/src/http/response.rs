@@ -41,15 +41,25 @@ impl Response {
         self.inner.header(name)
     }
 
-    /// Returns all response headers.
+    /// Returns all response headers. Repeated headers (e.g. `Set-Cookie`)
+    /// appear once per value, in received order.
     pub fn headers(&self) -> Vec<Header> {
-        self.inner
-            .headers_names()
+        // `headers_names()` lists one entry per header line, so a repeated
+        // header shows up multiple times; dedupe while keeping first-seen
+        // order, then collect every value for each unique name.
+        let mut names: Vec<String> = Vec::new();
+        for name in self.inner.headers_names() {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+        names
             .into_iter()
-            .filter_map(|name| {
-                self.inner
-                    .header(&name)
-                    .map(|value| Header { name, value: value.to_string() })
+            .flat_map(|name| {
+                self.inner.all(&name).into_iter().map(move |value| Header {
+                    name: name.clone(),
+                    value: value.to_string(),
+                })
             })
             .collect()
     }
@@ -76,9 +86,9 @@ impl Response {
     pub fn bytes(self) -> Result<Vec<u8>, HermesHttpError> {
         let mut reader = self.inner.into_reader();
         let mut buf = Vec::new();
-        reader.read_to_end(&mut buf).map_err(|e| {
-            HermesHttpError::Response(format!("failed reading response body: {e}"))
-        })?;
+        reader
+            .read_to_end(&mut buf)
+            .map_err(|e| HermesHttpError::Response(format!("failed reading response body: {e}")))?;
         Ok(buf)
     }
 

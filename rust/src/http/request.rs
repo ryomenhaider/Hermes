@@ -100,8 +100,8 @@ impl RequestBuilder {
         &self.headers
     }
 
-    pub(crate) fn request_body(&self) -> &Option<Body> {
-        &self.body
+    pub(crate) fn request_body(&self) -> Option<&Body> {
+        self.body.as_ref()
     }
 
     pub fn header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {

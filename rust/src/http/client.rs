@@ -101,6 +101,12 @@ impl HttpClientBuilder {
     }
 }
 
+impl Default for HttpClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpClient {
     /// A client with default configuration (30s timeout, no retries).
     pub fn new() -> HttpClient {
@@ -165,6 +171,9 @@ impl HttpClient {
             Some(Body::Text(text)) => req.send_string(text),
         };
         // Non-2xx responses are still responses: callers inspect `status`.
-        result.or_any_status().map(Response::from_ureq).map_err(HermesHttpError::from)
+        result
+            .or_any_status()
+            .map(Response::from_ureq)
+            .map_err(HermesHttpError::from)
     }
 }

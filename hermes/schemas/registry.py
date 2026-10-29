@@ -2,7 +2,10 @@ import logging
 import re
 from functools import lru_cache
 
-import polars as pl
+try:
+    import polars as pl
+except ImportError:
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 from hermes.core.errors import SchemaError
 from hermes.schemas.base import Compatibility, Schema, polars_type

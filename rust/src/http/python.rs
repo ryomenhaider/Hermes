@@ -47,7 +47,7 @@ fn to_py_err(py: Python<'_>, err: RustHttpError) -> PyErr {
 }
 
 /// Materialized response body so no underlying HTTP types leak across the FFI.
-#[pyclass(name = "HttpResponse", skip_from_py_object)]
+#[pyclass(name = "HttpResponse")]
 #[derive(Clone)]
 pub struct HttpResponse {
     status: u16,
@@ -83,9 +83,8 @@ impl HttpResponse {
 
     /// Decodes the body as UTF-8 text.
     fn text(&self) -> PyResult<String> {
-        String::from_utf8(self.body.clone()).map_err(|e| {
-            PyValueError::new_err(format!("response body is not valid UTF-8: {e}"))
-        })
+        String::from_utf8(self.body.clone())
+            .map_err(|e| PyValueError::new_err(format!("response body is not valid UTF-8: {e}")))
     }
 
     /// Parses the body as JSON.
@@ -145,9 +144,14 @@ impl HttpClient {
         retries: Option<u32>,
     ) -> PyResult<Self> {
         let mut builder = CoreClient::builder();
-        let secs = timeout_secs.unwrap_or(30.0);
-        if secs.is_finite() && secs >= 0.0 {
-            builder = builder.timeout(Duration::from_secs_f64(secs));
+        if let Some(secs) = timeout_secs {
+            // `from_secs_f64` panics on out-of-range input, which would surface
+            // as an opaque PanicException; validate and raise a clean error.
+            builder = builder.timeout(Duration::try_from_secs_f64(secs).map_err(|_| {
+                PyValueError::new_err(format!(
+                    "invalid timeout_secs: {secs} (must be a finite, non-negative number of seconds)"
+                ))
+            })?);
         }
         if let Some(user_agent) = user_agent {
             builder = builder.user_agent(&user_agent);

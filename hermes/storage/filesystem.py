@@ -9,14 +9,14 @@ from pathlib import Path
 from types import UnionType
 from typing import Any, Union, cast, get_args, get_origin, get_type_hints
 
-import polars as pl
+
 
 try:
     import pyarrow as pa
     import pyarrow.parquet as pq
+    import polars as pl
 except ImportError:
-    pa = None
-    pq = None
+    print("This Module Need Polars and PyArrow Installed, use pip/uv install/add hermes-plt[data] ")
 
 from hermes.core.config import get_config
 from hermes.core.dataset import Dataset
